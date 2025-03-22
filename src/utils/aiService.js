@@ -1,5 +1,5 @@
 
-// AI service for handling chat requests
+// AI service for handling chat requests using Google Gemini
 import { useToast } from "@/components/ui/use-toast";
 
 // Default system prompt that instructs the AI on how to analyze documents
@@ -10,12 +10,12 @@ const DEFAULT_SYSTEM_PROMPT =
 
 class AIService {
   constructor() {
-    this.apiKey = localStorage.getItem('openai_api_key') || '';
+    this.apiKey = localStorage.getItem('gemini_api_key') || '';
   }
 
   setApiKey(key) {
     this.apiKey = key;
-    localStorage.setItem('openai_api_key', key);
+    localStorage.setItem('gemini_api_key', key);
     return this.verifyApiKey();
   }
 
@@ -27,13 +27,8 @@ class AIService {
     if (!this.apiKey) return false;
     
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`
-        }
-      });
-      
+      // Using a simple request to verify the API key
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`);
       return response.ok;
     } catch (error) {
       console.error('Error verifying API key:', error);
@@ -57,7 +52,7 @@ class AIService {
 
   async generateChatResponse(message, chatHistory, sources, activeSource) {
     if (!this.apiKey) {
-      throw new Error('OpenAI API key not set. Please add your API key in settings.');
+      throw new Error('Google Gemini API key not set. Please add your API key in settings.');
     }
 
     // Extract the relevant source content
@@ -65,36 +60,61 @@ class AIService {
       ? `Information from source "${sources[activeSource]?.name}": ${sources[activeSource]?.content || "No content available"}`
       : "No sources have been added yet.";
 
-    // Create messages array with system prompt, context, and chat history
-    const messages = [
-      { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
-      { role: 'system', content: `Context: ${sourceContent}` },
-      ...chatHistory,
-      { role: 'user', content: message }
-    ];
+    // Format chat history for Gemini API
+    const formattedHistory = chatHistory.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Prepare the request body
+    const requestBody = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: DEFAULT_SYSTEM_PROMPT }]
+        },
+        {
+          role: 'user',
+          parts: [{ text: `Context: ${sourceContent}` }]
+        },
+        ...formattedHistory,
+        {
+          role: 'user',
+          parts: [{ text: message }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      }
+    };
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Make the API request to Gemini
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages,
-          temperature: 0.7,
-          max_tokens: 1000
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to get response from OpenAI');
+        throw new Error(error.error?.message || 'Failed to get response from Google Gemini');
       }
 
       const data = await response.json();
-      return data.choices[0].message.content;
+      
+      // Extract the response text from Gemini's response format
+      if (data.candidates && data.candidates.length > 0 && 
+          data.candidates[0].content && 
+          data.candidates[0].content.parts && 
+          data.candidates[0].content.parts.length > 0) {
+        return data.candidates[0].content.parts[0].text;
+      } else {
+        throw new Error('Invalid response format from Gemini API');
+      }
     } catch (error) {
       console.error('Error generating chat response:', error);
       throw error;

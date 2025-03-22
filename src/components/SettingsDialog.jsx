@@ -25,7 +25,7 @@ const SettingsDialog = ({ isOpen, onClose }) => {
     if (!apiKey.trim()) {
       toast({
         title: "API Key Required",
-        description: "Please enter an OpenAI API key",
+        description: "Please enter a Google Gemini API key",
         variant: "destructive",
       });
       return;
@@ -84,18 +84,18 @@ const SettingsDialog = ({ isOpen, onClose }) => {
 
         <div className="mt-4 space-y-4">
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">OpenAI API Key</h3>
+            <h3 className="text-sm font-medium">Google Gemini API Key</h3>
             <div className="space-y-2">
               <Input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder="YOUR_API_KEY..."
                 className="font-mono"
               />
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">OpenAI dashboard</a>
+                  Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>
                 </p>
                 <Button 
                   variant="outline" 
@@ -127,7 +127,7 @@ const SettingsDialog = ({ isOpen, onClose }) => {
           <div className="space-y-2">
             <h3 className="text-sm font-medium">AI Model</h3>
             <p className="text-xs text-muted-foreground">
-              Currently using GPT-4o-mini for optimal performance and cost. Model selection will be available in a future update.
+              Currently using Google Gemini Pro for optimal performance. Model selection will be available in a future update.
             </p>
           </div>
         </div>

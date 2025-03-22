@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +37,7 @@ const ChatPanel = ({ sources, activeSource }) => {
     try {
       // Check if API key is set
       if (!aiService.getApiKey()) {
-        throw new Error('OpenAI API key not set. Please add your API key in settings.');
+        throw new Error('Google Gemini API key not set. Please add your API key in settings.');
       }
 
       // Format chat history for the API
@@ -64,7 +63,7 @@ const ChatPanel = ({ sources, activeSource }) => {
       // Add error message to chat
       const errorMessage = {
         role: 'assistant',
-        content: `Error: ${error.message}. ${!aiService.getApiKey() ? 'Please set your OpenAI API key in settings.' : 'Please try again.'}`
+        content: `Error: ${error.message}. ${!aiService.getApiKey() ? 'Please set your Google Gemini API key in settings.' : 'Please try again.'}`
       };
       setChatHistory(prev => [...prev, errorMessage]);
       
