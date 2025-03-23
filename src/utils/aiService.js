@@ -11,6 +11,7 @@ const DEFAULT_SYSTEM_PROMPT =
 class AIService {
   constructor() {
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
+    this.model = 'gemini-1.5-flash'; // Updated to Gemini 1.5 Flash model
   }
 
   setApiKey(key) {
@@ -90,8 +91,8 @@ class AIService {
     };
 
     try {
-      // Make the API request to Gemini
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.apiKey}`, {
+      // Make the API request to Gemini with the updated model
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
