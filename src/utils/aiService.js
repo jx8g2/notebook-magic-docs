@@ -1,6 +1,11 @@
 
 // AI service for handling chat requests using Google Gemini
 import { useToast } from "@/components/ui/use-toast";
+import * as pdfjs from 'pdfjs-dist';
+
+// Set worker path for PDF.js
+const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Default system prompt that instructs the AI on how to analyze documents
 const DEFAULT_SYSTEM_PROMPT = 
@@ -12,6 +17,7 @@ class AIService {
   constructor() {
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
     this.model = 'gemini-1.5-flash'; // Using Gemini 1.5 Flash model which supports multimodality
+    this.processedDocuments = {}; // Cache for processed documents
   }
 
   setApiKey(key) {
@@ -50,13 +56,18 @@ class AIService {
           // Process based on file type
           if (file.type === 'application/pdf') {
             content = await this.extractTextFromPDF(file);
+            // Store the processed content in the cache
+            this.processedDocuments[file.name] = content;
           } else if (file.type.startsWith('image/')) {
             content = await this.extractTextFromImage(file);
+            this.processedDocuments[file.name] = content;
           } else if (file.type === 'text/plain') {
             content = await file.text();
+            this.processedDocuments[file.name] = content;
           } else {
             // For other file types, use a generic approach
             content = `Content extracted from ${file.name} (${file.type})`;
+            this.processedDocuments[file.name] = content;
           }
           
           processedSources.push({
@@ -86,35 +97,98 @@ class AIService {
   }
   
   async extractTextFromPDF(file) {
-    // For PDFs, we'll analyze them directly with Gemini's vision capabilities
-    // by converting pages to images and sending them to the model
     try {
-      if (!this.apiKey) {
-        throw new Error('API key not set');
+      console.log(`Processing PDF: ${file.name}`);
+      
+      // Convert the File object to an ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Load the PDF using PDF.js
+      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      console.log(`PDF loaded with ${pdf.numPages} pages`);
+      
+      let extractedText = '';
+      
+      // Extract text from each page
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        extractedText += `Page ${i}: ${pageText}\n\n`;
       }
       
-      // Here we would typically use a PDF.js approach to render pages
-      // For now, we'll create a placeholder with information for the user
-      
-      return "PDF text extraction with OCR is being processed. The Gemini API will analyze the document content when you ask questions about it.";
+      console.log(`Extracted ${extractedText.length} characters from PDF`);
+      return extractedText || "No text could be extracted from this PDF. It may be scanned or contain only images.";
     } catch (error) {
       console.error('Error extracting text from PDF:', error);
-      return `Error extracting text from PDF: ${error.message}`;
+      return `Error extracting text from PDF: ${error.message}. The PDF may be encrypted, damaged, or in an unsupported format.`;
     }
   }
   
   async extractTextFromImage(file) {
-    // Similar approach for images
+    // Similar approach for images, using Gemini's vision capabilities
     try {
       if (!this.apiKey) {
         throw new Error('API key not set');
       }
       
-      return "Image OCR is being processed. The Gemini API will analyze the image content when you ask questions about it.";
+      // Convert image to base64
+      const base64Image = await this.fileToBase64(file);
+      
+      // Create a request to Gemini to extract text from the image
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: "Extract all visible text from this image using OCR. Return only the extracted text, nothing else."
+              },
+              {
+                inline_data: {
+                  mime_type: file.type,
+                  data: base64Image.split(',')[1]
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 1000,
+        }
+      };
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to process image with Gemini');
+      }
+      
+      const data = await response.json();
+      const extractedText = data.candidates[0].content.parts[0].text;
+      
+      return extractedText || "No text could be extracted from this image.";
     } catch (error) {
       console.error('Error extracting text from image:', error);
       return `Error extracting text from image: ${error.message}`;
     }
+  }
+  
+  async fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
   }
 
   async generateChatResponse(message, chatHistory, sources, activeSource) {
@@ -190,6 +264,11 @@ class AIService {
       console.error('Error generating chat response:', error);
       throw error;
     }
+  }
+  
+  // New method to get processed document content
+  getProcessedDocument(fileName) {
+    return this.processedDocuments[fileName] || null;
   }
 }
 
