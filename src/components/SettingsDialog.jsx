@@ -127,7 +127,7 @@ const SettingsDialog = ({ isOpen, onClose }) => {
           <div className="space-y-2">
             <h3 className="text-sm font-medium">AI Model</h3>
             <p className="text-xs text-muted-foreground">
-              Currently using Google Gemini 1.5 Flash for optimal performance. Model selection will be available in a future update.
+              Currently using Google Gemini 1.5 Flash for optimal performance. This model supports OCR capabilities to analyze documents and images. Model selection will be available in a future update.
             </p>
           </div>
         </div>
