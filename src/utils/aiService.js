@@ -11,6 +11,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 const DEFAULT_SYSTEM_PROMPT = 
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
   "Analyze the provided context from the user's documents and answer questions based on that information. " +
+  "When analyzing images or PDFs, use OCR to extract and understand all visible text and content. " +
   "If you don't know the answer based on the provided context, say so clearly rather than making up information.";
 
 class AIService {
@@ -44,7 +45,7 @@ class AIService {
   }
 
   async processDocuments(sources) {
-    // Now we'll process documents with improved OCR capabilities
+    console.log('Processing documents:', sources);
     const processedSources = [];
     
     for (const source of sources) {
@@ -55,11 +56,15 @@ class AIService {
           
           // Process based on file type
           if (file.type === 'application/pdf') {
+            console.log(`Processing PDF file: ${file.name}`);
             content = await this.extractTextFromPDF(file);
+            console.log(`Extracted ${content.length} characters from PDF: ${file.name}`);
             // Store the processed content in the cache
             this.processedDocuments[file.name] = content;
           } else if (file.type.startsWith('image/')) {
+            console.log(`Processing image file: ${file.name}`);
             content = await this.extractTextFromImage(file);
+            console.log(`Extracted text from image: ${file.name}`, content.substring(0, 100) + '...');
             this.processedDocuments[file.name] = content;
           } else if (file.type === 'text/plain') {
             content = await file.text();
@@ -93,6 +98,7 @@ class AIService {
       }
     }
     
+    console.log('Processed documents:', processedSources.map(s => ({name: s.name, contentLength: s.content.length})));
     return processedSources;
   }
   
@@ -112,6 +118,7 @@ class AIService {
       
       // Extract text from each page
       for (let i = 1; i <= pdf.numPages; i++) {
+        console.log(`Extracting text from page ${i}...`);
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
@@ -133,16 +140,18 @@ class AIService {
         throw new Error('API key not set');
       }
       
+      console.log(`Converting image to base64: ${file.name}`);
       // Convert image to base64
       const base64Image = await this.fileToBase64(file);
       
+      console.log('Creating request to Gemini for OCR extraction');
       // Create a request to Gemini to extract text from the image
       const requestBody = {
         contents: [
           {
             parts: [
               {
-                text: "Extract all visible text from this image using OCR. Return only the extracted text, nothing else."
+                text: "Extract all visible text from this image using OCR. Return only the extracted text, nothing else. Be thorough and extract ALL text visible in the image, including small text, headers, captions, and any text in diagrams or figures."
               },
               {
                 inline_data: {
@@ -155,10 +164,11 @@ class AIService {
         ],
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 1000,
+          maxOutputTokens: 4000,
         }
       };
       
+      console.log('Sending OCR request to Gemini API');
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`, {
         method: 'POST',
         headers: {
@@ -172,9 +182,11 @@ class AIService {
         throw new Error(error.error?.message || 'Failed to process image with Gemini');
       }
       
+      console.log('Received OCR response from Gemini API');
       const data = await response.json();
       const extractedText = data.candidates[0].content.parts[0].text;
       
+      console.log(`OCR extracted ${extractedText.length} characters of text`);
       return extractedText || "No text could be extracted from this image.";
     } catch (error) {
       console.error('Error extracting text from image:', error);
@@ -192,14 +204,25 @@ class AIService {
   }
 
   async generateChatResponse(message, chatHistory, sources, activeSource) {
+    console.log('Generating chat response with sources:', sources.length > 0 ? sources[activeSource]?.name : 'No sources');
+    
     if (!this.apiKey) {
       throw new Error('Google Gemini API key not set. Please add your API key in settings.');
     }
 
+    // Ensure we have sources to use
+    if (!sources || sources.length === 0) {
+      throw new Error('No sources have been added. Please add at least one document or text source.');
+    }
+
     // Extract the relevant source content
-    const sourceContent = sources.length > 0 
-      ? `Information from source "${sources[activeSource]?.name}": ${sources[activeSource]?.content || "No content available"}`
-      : "No sources have been added yet.";
+    const activeSourceData = sources[activeSource];
+    if (!activeSourceData) {
+      throw new Error('Selected source not found. Please select a valid source.');
+    }
+
+    const sourceContent = activeSourceData.content || "No content available for this source.";
+    console.log(`Using source: ${activeSourceData.name}, content length: ${sourceContent.length} characters`);
 
     // Format chat history for Gemini API
     const formattedHistory = chatHistory.map(msg => ({
@@ -209,7 +232,7 @@ class AIService {
 
     // Enhanced instruction for Gemini to utilize OCR capabilities
     const enhancedSystemPrompt = DEFAULT_SYSTEM_PROMPT + 
-      " If the document is a PDF or an image, extract and analyze all visible text including text in images using OCR technology.";
+      " When analyzing documents, extract ALL text including text in images, charts, and diagrams. Pay special attention to formulas, code blocks, and technical content.";
 
     // Prepare the request body
     const requestBody = {
@@ -220,7 +243,7 @@ class AIService {
         },
         {
           role: 'user',
-          parts: [{ text: `Context: ${sourceContent}` }]
+          parts: [{ text: `Document Context from "${activeSourceData.name}":\n\n${sourceContent}` }]
         },
         ...formattedHistory,
         {
@@ -230,11 +253,12 @@ class AIService {
       ],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 1000,
+        maxOutputTokens: 4000,
       }
     };
 
     try {
+      console.log('Sending request to Gemini API');
       // Make the API request to Gemini with the updated model
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`, {
         method: 'POST',
@@ -246,9 +270,11 @@ class AIService {
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('Error response from Gemini API:', error);
         throw new Error(error.error?.message || 'Failed to get response from Google Gemini');
       }
 
+      console.log('Received response from Gemini API');
       const data = await response.json();
       
       // Extract the response text from Gemini's response format
@@ -256,8 +282,11 @@ class AIService {
           data.candidates[0].content && 
           data.candidates[0].content.parts && 
           data.candidates[0].content.parts.length > 0) {
-        return data.candidates[0].content.parts[0].text;
+        const responseText = data.candidates[0].content.parts[0].text;
+        console.log(`Generated response with ${responseText.length} characters`);
+        return responseText;
       } else {
+        console.error('Invalid response format from Gemini API:', data);
         throw new Error('Invalid response format from Gemini API');
       }
     } catch (error) {
@@ -266,9 +295,11 @@ class AIService {
     }
   }
   
-  // New method to get processed document content
+  // Get processed document content
   getProcessedDocument(fileName) {
-    return this.processedDocuments[fileName] || null;
+    const content = this.processedDocuments[fileName] || null;
+    console.log(`Retrieved document ${fileName}: ${content ? content.length + ' characters' : 'not found'}`);
+    return content;
   }
 }
 
