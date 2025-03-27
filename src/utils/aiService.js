@@ -1,10 +1,9 @@
-
 // AI service for handling chat requests using Google Gemini
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjs from 'pdfjs-dist';
 
-// Set worker path for PDF.js
-const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+// Set worker path for PDF.js - Updated to match the API version
+const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Default system prompt that instructs the AI on how to analyze documents
@@ -135,8 +134,15 @@ class AIService {
       // Convert the File object to an ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
       
-      // Load the PDF using PDF.js
-      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+      // Load the PDF using PDF.js with explicit API version
+      const loadingTask = pdfjs.getDocument({
+        data: arrayBuffer,
+        useWorkerFetch: false,
+        isEvalSupported: true,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+      });
+      
       const pdf = await loadingTask.promise;
       console.log(`PDF loaded with ${pdf.numPages} pages`);
       
