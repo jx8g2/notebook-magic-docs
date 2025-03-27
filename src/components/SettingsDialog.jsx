@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, Check, AlertCircle, FileText, ImageIcon, FileIcon } from 'lucide-react';
+import { Settings, Check, AlertCircle, FileText, ImageIcon, FileIcon, ArrowRight } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import aiService from '@/utils/aiService';
 
@@ -158,6 +158,17 @@ const SettingsDialog = ({ isOpen, onClose }) => {
                     Only the extracted text is sent to the AI for analysis.
                   </p>
                 </div>
+              </div>
+              
+              <div className="border-t border-border/40 mt-3 pt-3">
+                <div className="flex items-center">
+                  <ArrowRight className="h-4 w-4 text-primary mr-2" />
+                  <span className="font-medium">Document Content Now Viewable</span>
+                </div>
+                <p className="text-muted-foreground text-xs mt-1 ml-6">
+                  After uploading a file, you can now view the extracted content directly in the chat panel
+                  by clicking the "View Content" button. This helps you confirm that the document was processed correctly.
+                </p>
               </div>
             </div>
           </div>

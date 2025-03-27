@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Upload, UploadCloud, FileText, Loader2 } from 'lucide-react';
+import { Send, Upload, UploadCloud, FileText, Loader2, Eye } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -13,6 +13,8 @@ const ChatPanel = ({ sources, activeSource }) => {
   const [chatHistory, setChatHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingDocument, setIsProcessingDocument] = useState(false);
+  const [extractedContent, setExtractedContent] = useState('');
+  const [showExtractedContent, setShowExtractedContent] = useState(false);
   const messagesEndRef = useRef(null);
   const { toast } = useToast();
   
@@ -47,11 +49,20 @@ const ChatPanel = ({ sources, activeSource }) => {
             // Process this document
             await aiService.processDocuments([currentSource]);
             
+            // Get the extracted content and display it
+            const content = aiService.getProcessedDocument(currentSource.name);
+            setExtractedContent(content || "No content could be extracted from this document.");
+            
             toast({
               title: "Document ready",
               description: `${currentSource.name} has been processed and is ready for queries.`,
               duration: 3000,
             });
+          } else if (currentSource && currentSource.type === 'file' && 
+                     aiService.getProcessedDocument(currentSource.name)) {
+            // If we already have processed content, retrieve it
+            const content = aiService.getProcessedDocument(currentSource.name);
+            setExtractedContent(content || "No content could be extracted from this document.");
           }
         } catch (error) {
           console.error('Error processing document:', error);
@@ -126,10 +137,27 @@ const ChatPanel = ({ sources, activeSource }) => {
     }
   };
 
+  const toggleExtractedContent = () => {
+    setShowExtractedContent(!showExtractedContent);
+  };
+
   return (
     <div className="chat-container flex h-[calc(100vh-3.5rem)] flex-1 flex-col">
       <div className="border-b p-4">
-        <h2 className="text-lg font-medium">Chat</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Chat</h2>
+          {activeSourceData && activeSourceData.type === 'file' && extractedContent && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={toggleExtractedContent}
+              className="flex items-center gap-1"
+            >
+              <Eye className="h-4 w-4" />
+              {showExtractedContent ? 'Hide Content' : 'View Content'}
+            </Button>
+          )}
+        </div>
         {activeSourceData && (
           <p className="text-sm text-muted-foreground">
             {isProcessingDocument ? (
@@ -148,7 +176,14 @@ const ChatPanel = ({ sources, activeSource }) => {
       </div>
       
       <div className="flex-1 overflow-y-auto p-4">
-        {chatHistory.length === 0 ? (
+        {showExtractedContent && extractedContent ? (
+          <div className="bg-muted p-4 rounded-lg mb-4">
+            <h3 className="font-medium mb-2">Extracted Content from {activeSourceData?.name}</h3>
+            <div className="max-h-[70vh] overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-sm">{extractedContent}</pre>
+            </div>
+          </div>
+        ) : chatHistory.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="max-w-md text-center">
               <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />

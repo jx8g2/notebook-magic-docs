@@ -1,6 +1,6 @@
 
 // AI service for handling chat requests using Google Gemini
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import * as pdfjs from 'pdfjs-dist';
 
 // Set worker path for PDF.js
@@ -12,13 +12,26 @@ const DEFAULT_SYSTEM_PROMPT =
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
   "Analyze the provided context from the user's documents and answer questions based on that information. " +
   "When analyzing images or PDFs, use OCR to extract and understand all visible text and content. " +
-  "If you don't know the answer based on the provided context, say so clearly rather than making up information.";
+  "If you don't know the answer based on the provided context, say so clearly rather than making up information. " +
+  "The document content has already been extracted and provided to you, so you don't need to request access to any files. " +
+  "Use ONLY the document context provided to answer questions.";
 
 class AIService {
   constructor() {
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
     this.model = 'gemini-1.5-flash'; // Using Gemini 1.5 Flash model which supports multimodality
     this.processedDocuments = {}; // Cache for processed documents
+    
+    // Try to load cached documents from localStorage
+    try {
+      const cachedDocs = localStorage.getItem('processedDocuments');
+      if (cachedDocs) {
+        this.processedDocuments = JSON.parse(cachedDocs);
+        console.log('Loaded cached documents from localStorage:', Object.keys(this.processedDocuments));
+      }
+    } catch (error) {
+      console.error('Error loading cached documents:', error);
+    }
   }
 
   setApiKey(key) {
@@ -54,25 +67,38 @@ class AIService {
           const file = source.content;
           let content = '';
           
-          // Process based on file type
-          if (file.type === 'application/pdf') {
-            console.log(`Processing PDF file: ${file.name}`);
-            content = await this.extractTextFromPDF(file);
-            console.log(`Extracted ${content.length} characters from PDF: ${file.name}`);
-            // Store the processed content in the cache
-            this.processedDocuments[file.name] = content;
-          } else if (file.type.startsWith('image/')) {
-            console.log(`Processing image file: ${file.name}`);
-            content = await this.extractTextFromImage(file);
-            console.log(`Extracted text from image: ${file.name}`, content.substring(0, 100) + '...');
-            this.processedDocuments[file.name] = content;
-          } else if (file.type === 'text/plain') {
-            content = await file.text();
-            this.processedDocuments[file.name] = content;
+          // Check if we already have processed this file (by name and size)
+          const fileKey = `${file.name}_${file.size}`;
+          if (this.processedDocuments[fileKey]) {
+            console.log(`Using cached content for ${file.name}`);
+            content = this.processedDocuments[fileKey];
           } else {
-            // For other file types, use a generic approach
-            content = `Content extracted from ${file.name} (${file.type})`;
-            this.processedDocuments[file.name] = content;
+            // Process based on file type
+            if (file.type === 'application/pdf') {
+              console.log(`Processing PDF file: ${file.name}`);
+              content = await this.extractTextFromPDF(file);
+              console.log(`Extracted ${content.length} characters from PDF: ${file.name}`);
+            } else if (file.type.startsWith('image/')) {
+              console.log(`Processing image file: ${file.name}`);
+              content = await this.extractTextFromImage(file);
+              console.log(`Extracted text from image: ${file.name}`, content.substring(0, 100) + '...');
+            } else if (file.type === 'text/plain') {
+              content = await file.text();
+            } else {
+              // For other file types, use a generic approach
+              content = `Content extracted from ${file.name} (${file.type})`;
+            }
+            
+            // Store the processed content in the cache using filename and size as key
+            this.processedDocuments[fileKey] = content;
+            this.processedDocuments[file.name] = content; // Also store by name for backward compatibility
+            
+            // Cache to localStorage for persistence
+            try {
+              localStorage.setItem('processedDocuments', JSON.stringify(this.processedDocuments));
+            } catch (e) {
+              console.warn('Failed to cache documents to localStorage', e);
+            }
           }
           
           processedSources.push({
@@ -221,7 +247,15 @@ class AIService {
       throw new Error('Selected source not found. Please select a valid source.');
     }
 
-    const sourceContent = activeSourceData.content || "No content available for this source.";
+    let sourceContent = '';
+    if (activeSourceData.type === 'file') {
+      // Get the cached version of the document content
+      sourceContent = this.getProcessedDocument(activeSourceData.name) || 
+                     "No content available for this source. Please try re-uploading the document.";
+    } else {
+      sourceContent = activeSourceData.content || "No content available for this source.";
+    }
+    
     console.log(`Using source: ${activeSourceData.name}, content length: ${sourceContent.length} characters`);
 
     // Format chat history for Gemini API
@@ -230,9 +264,9 @@ class AIService {
       parts: [{ text: msg.content }]
     }));
 
-    // Enhanced instruction for Gemini to utilize OCR capabilities
+    // Enhanced instruction for Gemini
     const enhancedSystemPrompt = DEFAULT_SYSTEM_PROMPT + 
-      " When analyzing documents, extract ALL text including text in images, charts, and diagrams. Pay special attention to formulas, code blocks, and technical content.";
+      " Remember: You already have all the document content, so don't say you can't access the file - use what's been provided in the context.";
 
     // Prepare the request body
     const requestBody = {
@@ -300,6 +334,24 @@ class AIService {
     const content = this.processedDocuments[fileName] || null;
     console.log(`Retrieved document ${fileName}: ${content ? content.length + ' characters' : 'not found'}`);
     return content;
+  }
+
+  // Clear cache for a specific document or all documents
+  clearCache(fileName = null) {
+    if (fileName) {
+      delete this.processedDocuments[fileName];
+      console.log(`Cleared cache for ${fileName}`);
+    } else {
+      this.processedDocuments = {};
+      console.log('Cleared all document caches');
+    }
+    
+    // Update localStorage
+    try {
+      localStorage.setItem('processedDocuments', JSON.stringify(this.processedDocuments));
+    } catch (e) {
+      console.warn('Failed to update localStorage after clearing cache', e);
+    }
   }
 }
 
