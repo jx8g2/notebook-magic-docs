@@ -1,3 +1,4 @@
+
 // AI service for handling chat requests using Google Gemini
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjs from 'pdfjs-dist';
@@ -8,14 +9,16 @@ import * as XLSX from 'xlsx';
 const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-// Default system prompt that instructs the AI on how to analyze documents
+// Updated system prompt that instructs the AI to use external information with citations
 const DEFAULT_SYSTEM_PROMPT = 
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
   "Analyze the provided context from the user's documents and answer questions based on that information. " +
   "When analyzing images or PDFs, use OCR to extract and understand all visible text and content. " +
-  "If you don't know the answer based on the provided context, say so clearly rather than making up information. " +
-  "The document content has already been extracted and provided to you, so you don't need to request access to any files. " +
-  "Use ONLY the document context provided to answer questions.";
+  "You may also use your general knowledge to provide more comprehensive answers. " +
+  "When providing information not found in the user's documents, clearly indicate this with phrases like 'Based on my knowledge...' or 'According to external information...' " +
+  "If relevant, provide citations or references for information not from the provided documents. " +
+  "If you're uncertain about something, acknowledge this rather than making up information. " +
+  "Use hyperlinks where possible when referencing external sources to help users find more information.";
 
 class AIService {
   constructor() {
@@ -320,27 +323,28 @@ class AIService {
       throw new Error('Google Gemini API key not set. Please add your API key in settings.');
     }
 
-    // Ensure we have sources to use
-    if (!sources || sources.length === 0) {
-      throw new Error('No sources have been added. Please add at least one document or text source.');
-    }
-
-    // Extract the relevant source content
-    const activeSourceData = sources[activeSource];
-    if (!activeSourceData) {
-      throw new Error('Selected source not found. Please select a valid source.');
-    }
-
+    // Allow generating responses even without sources
     let sourceContent = '';
-    if (activeSourceData.type === 'file') {
-      // Get the cached version of the document content
-      sourceContent = this.getProcessedDocument(activeSourceData.name) || 
-                     "No content available for this source. Please try re-uploading the document.";
-    } else {
-      sourceContent = activeSourceData.content || "No content available for this source.";
-    }
+    let sourceContextPrompt = '';
     
-    console.log(`Using source: ${activeSourceData.name}, content length: ${sourceContent.length} characters`);
+    if (sources && sources.length > 0 && sources[activeSource]) {
+      // Extract the relevant source content
+      const activeSourceData = sources[activeSource];
+      
+      if (activeSourceData.type === 'file') {
+        // Get the cached version of the document content
+        sourceContent = this.getProcessedDocument(activeSourceData.name) || 
+                       "No content available for this source. Please try re-uploading the document.";
+      } else {
+        sourceContent = activeSourceData.content || "No content available for this source.";
+      }
+      
+      console.log(`Using source: ${activeSourceData.name}, content length: ${sourceContent.length} characters`);
+      sourceContextPrompt = `Document Context from "${activeSourceData.name}":\n\n${sourceContent}`;
+    } else {
+      // If no sources are available, let the model use its general knowledge
+      sourceContextPrompt = "No specific document content provided. Use your general knowledge to answer the question, and provide citations where appropriate.";
+    }
 
     // Format chat history for Gemini API
     const formattedHistory = chatHistory.map(msg => ({
@@ -349,8 +353,7 @@ class AIService {
     }));
 
     // Enhanced instruction for Gemini
-    const enhancedSystemPrompt = DEFAULT_SYSTEM_PROMPT + 
-      " Remember: You already have all the document content, so don't say you can't access the file - use what's been provided in the context.";
+    const enhancedSystemPrompt = DEFAULT_SYSTEM_PROMPT;
 
     // Prepare the request body
     const requestBody = {
@@ -361,7 +364,7 @@ class AIService {
         },
         {
           role: 'user',
-          parts: [{ text: `Document Context from "${activeSourceData.name}":\n\n${sourceContent}` }]
+          parts: [{ text: sourceContextPrompt }]
         },
         ...formattedHistory,
         {

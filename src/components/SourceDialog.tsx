@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -13,8 +14,9 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
   const [files, setFiles] = useState([]);
   const [url, setUrl] = useState('');
   const [pastedText, setPastedText] = useState('');
-  const [useDrive, setUseDrive] = useState(false);
+  const [useLocalDrive, setUseLocalDrive] = useState(false);
   const fileInputRef = useRef(null);
+  const directoryInputRef = useRef(null);
   const { toast } = useToast();
 
   const handleDrag = (e) => {
@@ -38,6 +40,12 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
   };
 
   const handleFileInput = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const handleDirectoryInput = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(e.target.files);
     }
@@ -67,7 +75,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
           type: 'file', 
           name: file.name, 
           content: file,
-          useDrive: useDrive
+          useLocalDrive: useLocalDrive
         });
       });
     } else if (activeTab === 'link' && url) {
@@ -82,11 +90,11 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
         name: 'Text Snippet', 
         content: pastedText 
       });
-    } else if (activeTab === 'drive') {
+    } else if (activeTab === 'localDrive') {
       onAddSource({ 
-        type: 'drive', 
-        name: 'Google Drive', 
-        content: 'drive://all' 
+        type: 'localDrive', 
+        name: 'Local Drive', 
+        content: 'local://all' 
       });
     } else {
       toast({
@@ -101,7 +109,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
     setFiles([]);
     setUrl('');
     setPastedText('');
-    setUseDrive(false);
+    setUseLocalDrive(false);
     onClose();
   };
 
@@ -120,8 +128,8 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
             <TabsTrigger value="upload" className="flex items-center gap-1">
               <CloudUpload className="h-4 w-4" /> Upload
             </TabsTrigger>
-            <TabsTrigger value="drive" className="flex items-center gap-1">
-              <FolderIcon className="h-4 w-4" /> Drive
+            <TabsTrigger value="localDrive" className="flex items-center gap-1">
+              <FolderIcon className="h-4 w-4" /> Local Drive
             </TabsTrigger>
             <TabsTrigger value="link" className="flex items-center gap-1">
               <FileSymlink className="h-4 w-4" /> Link
@@ -189,24 +197,38 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
             <div className="mt-4 flex items-center space-x-2">
               <input
                 type="checkbox"
-                id="useDrive"
-                checked={useDrive}
-                onChange={(e) => setUseDrive(e.target.checked)}
+                id="useLocalDrive"
+                checked={useLocalDrive}
+                onChange={(e) => setUseLocalDrive(e.target.checked)}
               />
-              <label htmlFor="useDrive" className="text-sm">
-                Also search my entire Google Drive for relevant information
+              <label htmlFor="useLocalDrive" className="text-sm">
+                Also search my local drive for relevant information
               </label>
             </div>
           </TabsContent>
           
-          <TabsContent value="drive" className="mt-4">
+          <TabsContent value="localDrive" className="mt-4">
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
               <FolderIcon className="mb-2 h-10 w-10 text-muted-foreground" />
-              <h3 className="text-lg font-medium">Connect Google Drive</h3>
+              <h3 className="text-lg font-medium">Select Local Folder</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Allows NotebookLM to search across your entire Drive for relevant information
+                Allows NotebookLM to search across your local files and folders for relevant information
               </p>
-              <Button className="mt-4">Connect to Drive</Button>
+              <input
+                ref={directoryInputRef}
+                type="file"
+                webkitdirectory="true"
+                directory="true"
+                multiple
+                className="hidden"
+                onChange={handleDirectoryInput}
+              />
+              <Button 
+                className="mt-4" 
+                onClick={() => directoryInputRef.current.click()}
+              >
+                Select Folder
+              </Button>
             </div>
           </TabsContent>
           

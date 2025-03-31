@@ -57,7 +57,7 @@ const Sidebar = ({ sources, addSource, setActiveSource, activeSource }) => {
               >
                 {source.type === 'file' && <File className="h-4 w-4" />}
                 {source.type === 'link' && <Link className="h-4 w-4" />}
-                {source.type === 'drive' && <FolderOpen className="h-4 w-4" />}
+                {source.type === 'localDrive' && <FolderOpen className="h-4 w-4" />}
                 {source.type === 'text' && <FileText className="h-4 w-4" />}
                 {!isCollapsed && (
                   <span className="truncate">{source.name}</span>
@@ -79,30 +79,6 @@ const Sidebar = ({ sources, addSource, setActiveSource, activeSource }) => {
           )
         )}
       </div>
-
-      {!isCollapsed && (
-        <div className="border-t p-4">
-          <div className="flex flex-col space-y-1">
-            <p className="text-xs text-muted-foreground">Source limit</p>
-            <div className="flex items-center gap-2">
-              <div className="h-2 flex-1 rounded-full bg-secondary">
-                <div
-                  className="h-2 rounded-full bg-primary"
-                  style={{
-                    width: `${Math.min(
-                      (sources.length / 50) * 100,
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-              <span className="text-xs font-medium">
-                {sources.length} / 50
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   );
 };
