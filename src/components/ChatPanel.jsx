@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Upload, UploadCloud, FileText, Loader2, Eye } from 'lucide-react';
+import { Send, Upload, UploadCloud, FileText, Loader2, Eye, RefreshCw } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -141,21 +141,76 @@ const ChatPanel = ({ sources, activeSource }) => {
     setShowExtractedContent(!showExtractedContent);
   };
 
+  const handleReprocessDocument = async () => {
+    if (!activeSourceData || !activeSourceData.type === 'file') return;
+    
+    try {
+      setIsProcessingDocument(true);
+      
+      // Clear the cache for this file to force reprocessing
+      aiService.clearCache(activeSourceData.name);
+      
+      toast({
+        title: "Reprocessing document",
+        description: `Analyzing ${activeSourceData.name} again...`,
+        duration: 5000,
+      });
+      
+      // Process the document again
+      await aiService.processDocuments([activeSourceData]);
+      
+      // Get the updated content
+      const content = aiService.getProcessedDocument(activeSourceData.name);
+      setExtractedContent(content || "No content could be extracted from this document.");
+      
+      // Show content after reprocessing
+      setShowExtractedContent(true);
+      
+      toast({
+        title: "Document ready",
+        description: `${activeSourceData.name} has been reprocessed.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error reprocessing document:', error);
+      toast({
+        title: "Error",
+        description: `Failed to reprocess document: ${error.message}`,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setIsProcessingDocument(false);
+    }
+  };
+
   return (
     <div className="chat-container flex h-[calc(100vh-3.5rem)] flex-1 flex-col">
       <div className="border-b p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Chat</h2>
-          {activeSourceData && activeSourceData.type === 'file' && extractedContent && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={toggleExtractedContent}
-              className="flex items-center gap-1"
-            >
-              <Eye className="h-4 w-4" />
-              {showExtractedContent ? 'Hide Content' : 'View Content'}
-            </Button>
+          {activeSourceData && activeSourceData.type === 'file' && (
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={toggleExtractedContent}
+                className="flex items-center gap-1"
+              >
+                <Eye className="h-4 w-4" />
+                {showExtractedContent ? 'Hide Content' : 'View Content'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReprocessDocument}
+                disabled={isProcessingDocument}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw className={`h-4 w-4 ${isProcessingDocument ? 'animate-spin' : ''}`} />
+                Reprocess
+              </Button>
+            </div>
           )}
         </div>
         {activeSourceData && (
@@ -176,11 +231,11 @@ const ChatPanel = ({ sources, activeSource }) => {
       </div>
       
       <div className="flex-1 overflow-y-auto p-4">
-        {showExtractedContent && extractedContent ? (
+        {showExtractedContent && activeSourceData ? (
           <div className="bg-muted p-4 rounded-lg mb-4">
             <h3 className="font-medium mb-2">Extracted Content from {activeSourceData?.name}</h3>
             <div className="max-h-[70vh] overflow-y-auto">
-              <pre className="whitespace-pre-wrap text-sm">{extractedContent}</pre>
+              <pre className="whitespace-pre-wrap text-sm">{extractedContent || "No content has been extracted yet."}</pre>
             </div>
           </div>
         ) : chatHistory.length === 0 ? (

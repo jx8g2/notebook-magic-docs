@@ -1,6 +1,7 @@
 // AI service for handling chat requests using Google Gemini
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjs from 'pdfjs-dist';
+import mammoth from 'mammoth';
 
 // Set worker path for PDF.js - Updated to match the API version
 const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -83,9 +84,18 @@ class AIService {
               console.log(`Extracted text from image: ${file.name}`, content.substring(0, 100) + '...');
             } else if (file.type === 'text/plain') {
               content = await file.text();
+            } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+              console.log(`Processing Word document: ${file.name}`);
+              content = await this.extractTextFromDOCX(file);
+              console.log(`Extracted ${content.length} characters from DOCX: ${file.name}`);
             } else {
-              // For other file types, use a generic approach
-              content = `Content extracted from ${file.name} (${file.type})`;
+              // For other file types, try as text or use a generic approach
+              try {
+                content = await file.text();
+              } catch (e) {
+                console.warn(`Could not extract text from ${file.type}, using generic message`);
+                content = `Unable to extract content from this file type (${file.type}). Please convert it to PDF, text, or an image for better results.`;
+              }
             }
             
             // Store the processed content in the cache using filename and size as key
@@ -223,6 +233,30 @@ class AIService {
     } catch (error) {
       console.error('Error extracting text from image:', error);
       return `Error extracting text from image: ${error.message}`;
+    }
+  }
+  
+  async extractTextFromDOCX(file) {
+    try {
+      console.log(`Processing DOCX: ${file.name}`);
+      
+      // Convert the File object to an ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Use mammoth.js to extract text from the DOCX file
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      const extractedText = result.value;
+      
+      console.log(`Extracted ${extractedText.length} characters from DOCX`);
+      
+      if (!extractedText || extractedText.trim() === '') {
+        return "No text could be extracted from this Word document. It may be protected, contain only images, or use unsupported formatting.";
+      }
+      
+      return extractedText;
+    } catch (error) {
+      console.error('Error extracting text from DOCX:', error);
+      return `Error extracting text from Word document: ${error.message}. The document may be protected or damaged.`;
     }
   }
   
