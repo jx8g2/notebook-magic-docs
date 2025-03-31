@@ -2,6 +2,7 @@
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 
 // Set worker path for PDF.js - Updated to match the API version
 const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -88,6 +89,11 @@ class AIService {
               console.log(`Processing Word document: ${file.name}`);
               content = await this.extractTextFromDOCX(file);
               console.log(`Extracted ${content.length} characters from DOCX: ${file.name}`);
+            } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                      file.type === 'application/vnd.ms-excel') {
+              console.log(`Processing Excel file: ${file.name}`);
+              content = await this.extractTextFromExcel(file);
+              console.log(`Extracted ${content.length} characters from Excel: ${file.name}`);
             } else {
               // For other file types, try as text or use a generic approach
               try {
@@ -135,6 +141,44 @@ class AIService {
     
     console.log('Processed documents:', processedSources.map(s => ({name: s.name, contentLength: s.content.length})));
     return processedSources;
+  }
+  
+  async extractTextFromExcel(file) {
+    try {
+      console.log(`Processing Excel: ${file.name}`);
+      
+      // Convert the File object to an ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Use xlsx library to parse the Excel file
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Extract text from each sheet
+      let extractedText = '';
+      
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        extractedText += `Sheet: ${sheetName}\n\n`;
+        
+        // Convert the sheet data to a readable format
+        sheetData.forEach((row, rowIndex) => {
+          if (row && row.length > 0) {
+            const rowText = row.map(cell => cell !== undefined ? cell.toString() : '').join('\t');
+            extractedText += `${rowText}\n`;
+          }
+        });
+        
+        extractedText += '\n---\n\n';
+      });
+      
+      console.log(`Extracted ${extractedText.length} characters from Excel`);
+      return extractedText || "No text could be extracted from this Excel file. It may be protected or empty.";
+    } catch (error) {
+      console.error('Error extracting text from Excel:', error);
+      return `Error extracting text from Excel: ${error.message}. The file may be protected, damaged, or in an unsupported format.`;
+    }
   }
   
   async extractTextFromPDF(file) {

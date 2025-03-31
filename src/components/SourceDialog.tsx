@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -99,7 +98,6 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
       return;
     }
     
-    // Reset and close
     setFiles([]);
     setUrl('');
     setPastedText('');
@@ -149,7 +147,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
                   Drag & drop or <span className="text-primary underline">choose file</span> to upload
                 </p>
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Supported file types: PDF, .txt, Markdown, Audio (e.g. mp3)
+                  Supported file types: PDF, Excel, Word, .txt, Markdown, Images
                 </p>
                 <input
                   ref={fileInputRef}
