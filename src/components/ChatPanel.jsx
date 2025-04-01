@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +5,7 @@ import { Send, Upload, UploadCloud, FileText, Loader2, Eye, RefreshCw } from 'lu
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
-import aiService from '@/utils/aiService';
+import aiService from '@/utils/ai';
 
 const ChatPanel = ({ sources, activeSource }) => {
   const [message, setMessage] = useState('');
@@ -26,17 +25,14 @@ const ChatPanel = ({ sources, activeSource }) => {
     scrollToBottom();
   }, [chatHistory]);
 
-  // Function to process sources if not already processed
   useEffect(() => {
     if (sources.length > 0 && !isProcessingDocument) {
       const processSourcesIfNeeded = async () => {
         try {
           setIsProcessingDocument(true);
           
-          // Process all sources that need processing
           for (const source of sources) {
             if (source.type === 'file' && !aiService.getProcessedDocument(source.name)) {
-              // Show toast notification that document is being processed
               toast({
                 title: "Processing document",
                 description: `Analyzing ${source.name}...`,
@@ -44,12 +40,10 @@ const ChatPanel = ({ sources, activeSource }) => {
               });
               
               console.log(`Processing source: ${source.name}`);
-              // Process this document
               await aiService.processDocuments([source]);
             }
           }
           
-          // Get the extracted content for the active source
           if (sources[activeSource]) {
             const currentSource = sources[activeSource];
             if (currentSource.type === 'file') {
@@ -86,42 +80,35 @@ const ChatPanel = ({ sources, activeSource }) => {
     e.preventDefault();
     if (!message.trim() || isLoading) return;
     
-    // Add user message to chat
     const userMessage = { role: 'user', content: message };
     setChatHistory(prev => [...prev, userMessage]);
     setMessage('');
     setIsLoading(true);
     
     try {
-      // Check if API key is set
       if (!aiService.getApiKey()) {
         throw new Error('Google Gemini API key not set. Please add your API key in settings.');
       }
 
-      // Format chat history for the API
       const formattedHistory = chatHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
 
-      // Get AI response - pass all sources instead of just activeSource
       const aiResponse = await aiService.generateChatResponse(
         message,
         formattedHistory,
         sources,
-        activeSource // Still pass activeSource for compatibility
+        activeSource
       );
       
-      // Process the response to add clickable links for document references
       const processedResponse = processResponseWithLinks(aiResponse, sources);
       
-      // Add AI response to chat
       const assistantMessage = { role: 'assistant', content: processedResponse };
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error getting AI response:', error);
       
-      // Add error message to chat
       const errorMessage = {
         role: 'assistant',
         content: `Error: ${error.message}. ${!aiService.getApiKey() ? 'Please set your Google Gemini API key in settings.' : 'Please try again.'}`
@@ -139,25 +126,19 @@ const ChatPanel = ({ sources, activeSource }) => {
     }
   };
 
-  // Function to process response text and add clickable links for document references
   const processResponseWithLinks = (text, sources) => {
     if (!text) return text;
     
-    // Create a map of document names to their indices
     const documentMap = {};
     sources.forEach((source, index) => {
       documentMap[source.name] = index;
     });
     
-    // Replace [document name] with links
     const regex = /\[(.*?)\]/g;
     return text.replace(regex, (match, docName) => {
-      // Check if this document name exists in our sources
       if (documentMap[docName] !== undefined) {
-        // Create a clickable link for this document
         return `<a href="#" class="text-primary hover:underline" data-document-index="${documentMap[docName]}">[${docName}]</a>`;
       }
-      // If not found, return the original match
       return match;
     });
   };
@@ -172,7 +153,6 @@ const ChatPanel = ({ sources, activeSource }) => {
     try {
       setIsProcessingDocument(true);
       
-      // Clear the cache for this file to force reprocessing
       aiService.clearCache(activeSourceData.name);
       
       toast({
@@ -181,14 +161,11 @@ const ChatPanel = ({ sources, activeSource }) => {
         duration: 5000,
       });
       
-      // Process the document again
       await aiService.processDocuments([activeSourceData]);
       
-      // Get the updated content
       const content = aiService.getProcessedDocument(activeSourceData.name);
       setExtractedContent(content || "No content could be extracted from this document.");
       
-      // Show content after reprocessing
       setShowExtractedContent(true);
       
       toast({
@@ -209,13 +186,10 @@ const ChatPanel = ({ sources, activeSource }) => {
     }
   };
 
-  // Handler for clicking on document links in AI responses
   const handleDocumentLinkClick = (e) => {
-    // Check if the clicked element is a document link
     if (e.target.tagName === 'A' && e.target.dataset.documentIndex !== undefined) {
       e.preventDefault();
       
-      // Get the document index and activate that source
       const index = parseInt(e.target.dataset.documentIndex);
       if (!isNaN(index) && index >= 0 && index < sources.length) {
         setActiveSource(index);

@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Settings, Check, AlertCircle, FileText, ImageIcon, FileIcon, ArrowRight } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import aiService from '@/utils/aiService';
+import aiService from '@/utils/ai';
 
 const SettingsDialog = ({ isOpen, onClose }) => {
   const [apiKey, setApiKey] = useState('');
