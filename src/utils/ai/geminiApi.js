@@ -37,15 +37,7 @@ const geminiApi = {
       for (let i = 0; i < sources.length; i++) {
         const source = sources[i];
         
-        // Handle folder sources specially
-        if (source.isFolder && Array.isArray(source.content)) {
-          for (const fileSource of source.content) {
-            if (typeof fileSource.content === 'string') {
-              allSourcesContent += `Document [${fileSource.name}]:\n${fileSource.content}\n\n`;
-              documentIndex.push(fileSource.name);
-            }
-          }
-        } else {
+        if (typeof source.content === 'string') {
           allSourcesContent += `Document [${source.name}]:\n${source.content}\n\n`;
           documentIndex.push(source.name);
         }

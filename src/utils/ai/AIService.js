@@ -46,45 +46,48 @@ class AIService {
    */
   async generateChatResponse(message, chatHistory, sources, activeSource) {
     // Process sources into the format expected by the API
-    const processedSources = sources.map(source => {
+    const processedSources = [];
+    
+    for (const source of sources) {
       // For file sources, get the processed content
       if (source.type === 'file') {
-        return {
-          name: source.name,
-          content: this.getProcessedDocument(source.name) || "No content available for this source."
-        };
+        const content = this.getProcessedDocument(source.name);
+        if (content) {
+          processedSources.push({
+            name: source.name,
+            content: content
+          });
+        }
       } else if (source.type === 'folder') {
         // For folder sources, collect all processed contents from its files
         if (Array.isArray(source.content)) {
-          // If source.content is an array of files
-          const folderContent = source.content.map(file => {
+          // Process each file in the folder
+          for (const file of source.content) {
             const fileName = `${source.name}/${file.name}`;
-            return {
-              name: fileName,
-              content: this.getProcessedDocument(fileName) || "No content available for this file."
-            };
-          });
-          
-          return {
-            name: source.name,
-            content: folderContent,
-            isFolder: true
-          };
-        } else {
-          return {
-            name: source.name,
-            content: "Folder with multiple files",
-            isFolder: true
-          };
+            const content = this.getProcessedDocument(fileName);
+            if (content) {
+              processedSources.push({
+                name: fileName,
+                content: content
+              });
+            }
+          }
         }
-      } else {
-        return {
+      } else if (source.type === 'text') {
+        processedSources.push({
           name: source.name,
           content: source.content || "No content available for this source."
-        };
+        });
       }
-    });
+    }
 
+    // If no processed sources were found, let the user know
+    if (processedSources.length === 0) {
+      console.error('No processed content available for any sources!');
+      return "I couldn't find any processed content for your documents. Please try re-uploading them or check if the document format is supported.";
+    }
+    
+    console.log(`Sending ${processedSources.length} processed sources to the API`);
     return geminiApi.generateChatResponse(message, chatHistory, processedSources, this.apiKey, this.model);
   }
   

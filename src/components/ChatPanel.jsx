@@ -31,17 +31,34 @@ const ChatPanel = ({ sources, activeSource }) => {
         try {
           setIsProcessingDocument(true);
           
+          const unprocessedSources = [];
+          
           for (const source of sources) {
             if (source.type === 'file' && !aiService.getProcessedDocument(source.name)) {
-              toast({
-                title: "Processing document",
-                description: `Analyzing ${source.name}...`,
-                duration: 5000,
-              });
-              
-              console.log(`Processing source: ${source.name}`);
-              await aiService.processDocuments([source]);
+              unprocessedSources.push(source);
+            } else if (source.type === 'folder' && Array.isArray(source.content)) {
+              for (const file of source.content) {
+                const fileName = `${source.name}/${file.name}`;
+                if (!aiService.getProcessedDocument(fileName)) {
+                  unprocessedSources.push({
+                    type: 'file',
+                    name: fileName,
+                    content: file
+                  });
+                }
+              }
             }
+          }
+          
+          if (unprocessedSources.length > 0) {
+            toast({
+              title: "Processing documents",
+              description: `Analyzing ${unprocessedSources.length} document(s)...`,
+              duration: 5000,
+            });
+            
+            console.log(`Processing ${unprocessedSources.length} unprocessed sources`);
+            await aiService.processDocuments(unprocessedSources);
           }
           
           if (sources[activeSource]) {
@@ -49,6 +66,10 @@ const ChatPanel = ({ sources, activeSource }) => {
             if (currentSource.type === 'file') {
               const content = aiService.getProcessedDocument(currentSource.name);
               setExtractedContent(content || "No content could be extracted from this document.");
+            } else if (currentSource.type === 'folder' && Array.isArray(currentSource.content) && currentSource.content.length > 0) {
+              const firstFileName = `${currentSource.name}/${currentSource.content[0].name}`;
+              const content = aiService.getProcessedDocument(firstFileName);
+              setExtractedContent(content || "No content could be extracted from this file.");
             }
           }
           
@@ -132,6 +153,13 @@ const ChatPanel = ({ sources, activeSource }) => {
     const documentMap = {};
     sources.forEach((source, index) => {
       documentMap[source.name] = index;
+      
+      if (source.type === 'folder' && Array.isArray(source.content)) {
+        source.content.forEach(file => {
+          const fileName = `${source.name}/${file.name}`;
+          documentMap[fileName] = index;
+        });
+      }
     });
     
     const regex = /\[(.*?)\]/g;
@@ -148,23 +176,50 @@ const ChatPanel = ({ sources, activeSource }) => {
   };
 
   const handleReprocessDocument = async () => {
-    if (!activeSourceData || !activeSourceData.type === 'file') return;
+    if (!activeSourceData) return;
     
     try {
       setIsProcessingDocument(true);
       
-      aiService.clearCache(activeSourceData.name);
-      
-      toast({
-        title: "Reprocessing document",
-        description: `Analyzing ${activeSourceData.name} again...`,
-        duration: 5000,
-      });
-      
-      await aiService.processDocuments([activeSourceData]);
-      
-      const content = aiService.getProcessedDocument(activeSourceData.name);
-      setExtractedContent(content || "No content could be extracted from this document.");
+      if (activeSourceData.type === 'file') {
+        aiService.clearCache(activeSourceData.name);
+        
+        toast({
+          title: "Reprocessing document",
+          description: `Analyzing ${activeSourceData.name} again...`,
+          duration: 5000,
+        });
+        
+        await aiService.processDocuments([activeSourceData]);
+        
+        const content = aiService.getProcessedDocument(activeSourceData.name);
+        setExtractedContent(content || "No content could be extracted from this document.");
+      } else if (activeSourceData.type === 'folder' && Array.isArray(activeSourceData.content)) {
+        toast({
+          title: "Reprocessing folder",
+          description: `Analyzing all files in ${activeSourceData.name}...`,
+          duration: 5000,
+        });
+        
+        activeSourceData.content.forEach(file => {
+          const fileName = `${activeSourceData.name}/${file.name}`;
+          aiService.clearCache(fileName);
+        });
+        
+        const fileSources = activeSourceData.content.map(file => ({
+          type: 'file',
+          name: `${activeSourceData.name}/${file.name}`,
+          content: file
+        }));
+        
+        await aiService.processDocuments(fileSources);
+        
+        if (activeSourceData.content.length > 0) {
+          const firstFileName = `${activeSourceData.name}/${activeSourceData.content[0].name}`;
+          const content = aiService.getProcessedDocument(firstFileName);
+          setExtractedContent(content || "No content could be extracted from this file.");
+        }
+      }
       
       setShowExtractedContent(true);
       
@@ -192,11 +247,9 @@ const ChatPanel = ({ sources, activeSource }) => {
       
       const index = parseInt(e.target.dataset.documentIndex);
       if (!isNaN(index) && index >= 0 && index < sources.length) {
-        setActiveSource(index);
-        
         toast({
-          title: "Source activated",
-          description: `Switched to ${sources[index].name}`,
+          title: "Source reference",
+          description: `Referenced source: ${sources[index].name}`,
           duration: 3000,
         });
       }
