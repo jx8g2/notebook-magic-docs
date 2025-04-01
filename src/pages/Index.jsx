@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
+import DocumentsPanel from '@/components/DocumentsPanel';
 import SourceDialog from '@/components/SourceDialog';
 import SettingsDialog from '@/components/SettingsDialog';
 import { cn } from '@/lib/utils';
@@ -75,6 +76,14 @@ const Index = () => {
         )}
         
         <ChatPanel sources={sources} activeSource={activeSource} />
+        
+        {!isMobile && (
+          <DocumentsPanel 
+            sources={sources} 
+            activeSource={activeSource}
+            setActiveSource={setActiveSource}
+          />
+        )}
       </main>
       
       <SourceDialog 

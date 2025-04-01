@@ -45,7 +45,7 @@ class AIService {
    * Generate a chat response using the Gemini API
    */
   async generateChatResponse(message, chatHistory, sources, activeSource) {
-    // Process sources into the format expected by the API
+    // Process all sources into the format expected by the API
     const processedSources = [];
     
     for (const source of sources) {
@@ -68,6 +68,19 @@ class AIService {
             if (content) {
               processedSources.push({
                 name: fileName,
+                content: content
+              });
+            }
+          }
+        }
+      } else if (source.type === 'fileGroup') {
+        // For file groups (multiple selected files), include all files
+        if (Array.isArray(source.content)) {
+          for (const file of source.content) {
+            const content = this.getProcessedDocument(file.name);
+            if (content) {
+              processedSources.push({
+                name: file.name,
                 content: content
               });
             }

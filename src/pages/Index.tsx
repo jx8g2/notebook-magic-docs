@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
-import StudioPanel from '@/components/StudioPanel';
+import DocumentsPanel from '@/components/DocumentsPanel';
 import SourceDialog from '@/components/SourceDialog';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -75,7 +75,11 @@ const Index = () => {
         <ChatPanel sources={sources} activeSource={activeSource} />
         
         {!isMobile && (
-          <StudioPanel />
+          <DocumentsPanel 
+            sources={sources} 
+            activeSource={activeSource}
+            setActiveSource={setActiveSource}
+          />
         )}
       </main>
       

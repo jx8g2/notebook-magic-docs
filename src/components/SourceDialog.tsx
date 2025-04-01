@@ -120,6 +120,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
 
   const handleAddSource = () => {
     if (activeTab === 'upload' && files.length > 0) {
+      // Add each file individually
       files.forEach(file => {
         onAddSource({ 
           type: 'file', 
@@ -127,6 +128,15 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
           content: file
         });
       });
+      
+      // Also add as a group if multiple files
+      if (files.length > 1) {
+        onAddSource({
+          type: 'fileGroup',
+          name: 'Multiple Files',
+          content: files
+        });
+      }
     } else if (activeTab === 'text' && pastedText) {
       onAddSource({ 
         type: 'text', 
@@ -202,7 +212,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
                 <CloudUpload className="mb-2 h-10 w-10 text-muted-foreground" />
                 <h3 className="text-lg font-medium">Upload sources</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Drag & drop or <span className="text-primary underline">choose file</span> to upload
+                  Drag & drop or <span className="text-primary underline">choose files</span> to upload
                 </p>
                 <p className="mt-4 text-xs text-muted-foreground">
                   Supported file types: PDF, Excel, Word, .txt, Markdown, Images
@@ -219,7 +229,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
             
             {files.length > 0 && (
               <div className="mt-4 space-y-2">
-                <h4 className="text-sm font-medium">Selected files:</h4>
+                <h4 className="text-sm font-medium">Selected files ({files.length}):</h4>
                 <div className="max-h-32 overflow-y-auto rounded-md border bg-muted p-2">
                   {files.map((file, index) => (
                     <div key={index} className="flex items-center justify-between rounded py-1">

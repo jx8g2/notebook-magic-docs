@@ -10,7 +10,9 @@ export const DEFAULT_SYSTEM_PROMPT =
   "If a user asks about which document(s) contain specific content or keywords, list all matching documents with their names in [brackets]. " +
   "IMPORTANT: When referencing document names in your response, always use the EXACT document names as provided in the source list so they can be properly linked. " +
   "If you're uncertain about something, acknowledge this rather than making up information. " +
-  "Use hyperlinks where possible when referencing external sources to help users find more information.";
+  "Use HTML tags for formatting: <b>bold</b>, <i>italic</i>, <u>underline</u>, <ol><li>numbered lists</li></ol>, <ul><li>bullet lists</li></ul>. " +
+  "DO NOT use markdown formatting like **, __, ##, etc. Always use proper HTML tags instead. " +
+  "Use hyperlinks where possible when referencing external sources to help users find more information: <a href='URL'>link text</a>.";
 
 /**
  * Handles communication with the Gemini API

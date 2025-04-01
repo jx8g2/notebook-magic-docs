@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,16 @@ const ChatPanel = ({ sources, activeSource }) => {
                   unprocessedSources.push({
                     type: 'file',
                     name: fileName,
+                    content: file
+                  });
+                }
+              }
+            } else if (source.type === 'fileGroup' && Array.isArray(source.content)) {
+              for (const file of source.content) {
+                if (!aiService.getProcessedDocument(file.name)) {
+                  unprocessedSources.push({
+                    type: 'file',
+                    name: file.name,
                     content: file
                   });
                 }
@@ -132,7 +143,7 @@ const ChatPanel = ({ sources, activeSource }) => {
       
       const errorMessage = {
         role: 'assistant',
-        content: `Error: ${error.message}. ${!aiService.getApiKey() ? 'Please set your Google Gemini API key in settings.' : 'Please try again.'}`
+        content: `<b>Error:</b> ${error.message}. ${!aiService.getApiKey() ? 'Please set your Google Gemini API key in settings.' : 'Please try again.'}`
       };
       setChatHistory(prev => [...prev, errorMessage]);
       
@@ -336,7 +347,7 @@ const ChatPanel = ({ sources, activeSource }) => {
                   {msg.role === 'user' ? 'You' : 'NotebookLM'}
                 </span>
                 <div 
-                  className="text-sm whitespace-pre-wrap"
+                  className="text-sm whitespace-pre-wrap prose prose-sm dark:prose-invert"
                   dangerouslySetInnerHTML={{ __html: msg.content }}
                 />
               </div>
