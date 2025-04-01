@@ -8,7 +8,7 @@ import geminiApi from './geminiApi';
 class AIService {
   constructor() {
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
-    this.model = 'gemini-1.5-flash'; // Using Gemini 1.5 Flash model which supports multimodality
+    this.model = 'gemini-2.0-flash'; // Using Gemini 1.5 Flash model which supports multimodality
   }
 
   /**
