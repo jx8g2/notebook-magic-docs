@@ -12,6 +12,8 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
   const [activeTab, setActiveTab] = useState('upload');
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState([]);
+  const [folderFiles, setFolderFiles] = useState([]);
+  const [folderName, setFolderName] = useState('');
   const [pastedText, setPastedText] = useState('');
   const fileInputRef = useRef(null);
   const directoryInputRef = useRef(null);
@@ -43,24 +45,53 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
     }
   };
 
+  // Check if file type is supported
+  const isSupportedFileType = (file) => {
+    const supportedTypes = [
+      'application/pdf',                                           // PDF
+      'text/plain',                                                // TXT
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // XLSX
+      'application/vnd.ms-excel',                                  // XLS
+      'text/markdown',                                             // MD
+      'image/jpeg',                                                // JPEG/JPG
+      'image/png',                                                 // PNG
+      'image/gif',                                                 // GIF
+      'image/webp',                                                // WEBP
+      'image/bmp',                                                 // BMP
+      'image/tiff'                                                 // TIFF
+    ];
+    return supportedTypes.includes(file.type);
+  };
+
   const handleDirectoryInput = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFiles(e.target.files);
+      const fileList = Array.from(e.target.files);
+      const supportedFiles = fileList.filter(isSupportedFileType);
+      
+      if (supportedFiles.length === 0) {
+        toast({
+          title: "No supported files found",
+          description: "The selected folder doesn't contain any supported file types.",
+          variant: "destructive",
+          duration: 3000,
+        });
+        return;
+      }
+      
+      // Extract folder name from the first file's path
+      const path = e.target.files[0].webkitRelativePath || '';
+      const folderPathParts = path.split('/');
+      const extractedFolderName = folderPathParts.length > 0 ? folderPathParts[0] : 'Selected Folder';
+      
+      setFolderName(extractedFolderName);
+      setFolderFiles(supportedFiles);
       
       toast({
         title: "Folder selected",
-        description: `Added folder with ${e.target.files.length} file(s) to your sources.`,
+        description: `Added folder '${extractedFolderName}' with ${supportedFiles.length} supported file(s).`,
         duration: 3000,
       });
-      
-      onAddSource({ 
-        type: 'folder', 
-        name: 'Selected Folder', 
-        content: Array.from(e.target.files)
-      });
-      
-      setActiveTab('upload');
-      onClose();
     }
   };
 
@@ -81,6 +112,12 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
     setFiles(newFiles);
   };
 
+  const removeFolderFile = (index) => {
+    const newFiles = [...folderFiles];
+    newFiles.splice(index, 1);
+    setFolderFiles(newFiles);
+  };
+
   const handleAddSource = () => {
     if (activeTab === 'upload' && files.length > 0) {
       files.forEach(file => {
@@ -96,9 +133,22 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
         name: 'Text Snippet', 
         content: pastedText 
       });
-    } else if (activeTab === 'folder') {
-      // Handled in handleDirectoryInput
-      return;
+    } else if (activeTab === 'folder' && folderFiles.length > 0) {
+      // Add a single folder source that contains all supported files
+      onAddSource({ 
+        type: 'folder', 
+        name: folderName || 'Selected Folder', 
+        content: folderFiles
+      });
+      
+      // Also add each file individually for direct access
+      folderFiles.forEach(file => {
+        onAddSource({ 
+          type: 'file', 
+          name: `${folderName}/${file.name}`, 
+          content: file
+        });
+      });
     } else {
       toast({
         title: "No content added",
@@ -110,6 +160,8 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
     }
     
     setFiles([]);
+    setFolderFiles([]);
+    setFolderName('');
     setPastedText('');
     onClose();
   };
@@ -194,11 +246,11 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
           </TabsContent>
           
           <TabsContent value="folder" className="mt-4">
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center">
               <FolderIcon className="mb-2 h-10 w-10 text-muted-foreground" />
               <h3 className="text-lg font-medium">Select Folder</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Allows NotebookLM to search across your local files and folders for relevant information
+                Allows NotebookLM to search across your local files for relevant information
               </p>
               <input
                 ref={directoryInputRef}
@@ -216,6 +268,35 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
                 Select Folder
               </Button>
             </div>
+            
+            {folderFiles.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h4 className="text-sm font-medium">
+                  {folderName}: {folderFiles.length} supported file(s)
+                </h4>
+                <div className="max-h-32 overflow-y-auto rounded-md border bg-muted p-2">
+                  {folderFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between rounded py-1">
+                      <div className="flex items-center">
+                        <FileTextIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{file.name}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFolderFile(index);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="text" className="mt-4 space-y-4">

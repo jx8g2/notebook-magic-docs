@@ -54,10 +54,29 @@ class AIService {
           content: this.getProcessedDocument(source.name) || "No content available for this source."
         };
       } else if (source.type === 'folder') {
-        return {
-          name: source.name,
-          content: "Folder with multiple files"
-        };
+        // For folder sources, collect all processed contents from its files
+        if (Array.isArray(source.content)) {
+          // If source.content is an array of files
+          const folderContent = source.content.map(file => {
+            const fileName = `${source.name}/${file.name}`;
+            return {
+              name: fileName,
+              content: this.getProcessedDocument(fileName) || "No content available for this file."
+            };
+          });
+          
+          return {
+            name: source.name,
+            content: folderContent,
+            isFolder: true
+          };
+        } else {
+          return {
+            name: source.name,
+            content: "Folder with multiple files",
+            isFolder: true
+          };
+        }
       } else {
         return {
           name: source.name,

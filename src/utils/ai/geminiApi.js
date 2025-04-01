@@ -6,8 +6,9 @@ export const DEFAULT_SYSTEM_PROMPT =
   "When analyzing images or PDFs, use OCR to extract and understand all visible text and content. " +
   "You may also use your general knowledge to provide more comprehensive answers. " +
   "When providing information not found in the user's documents, clearly indicate this with phrases like 'Based on my knowledge...' or 'According to external information...' " +
-  "If relevant, provide citations or references by including the document name in [brackets] after relevant information. " +
-  "If a user asks about which document contains specific content, list all matching documents with their names in [brackets]. " +
+  "If relevant, provide citations by including the document name in [brackets] after relevant information. " +
+  "If a user asks about which document(s) contain specific content or keywords, list all matching documents with their names in [brackets]. " +
+  "IMPORTANT: When referencing document names in your response, always use the EXACT document names as provided in the source list so they can be properly linked. " +
   "If you're uncertain about something, acknowledge this rather than making up information. " +
   "Use hyperlinks where possible when referencing external sources to help users find more information.";
 
@@ -27,18 +28,37 @@ const geminiApi = {
 
     // Allow generating responses even without sources
     let sourceContextPrompt = '';
+    let documentIndex = [];
     
     if (sources && sources.length > 0) {
-      // Use all sources
+      // Process all sources
       let allSourcesContent = '';
       
       for (let i = 0; i < sources.length; i++) {
         const source = sources[i];
-        allSourcesContent += `Document [${source.name}]:\n${source.content}\n\n`;
+        
+        // Handle folder sources specially
+        if (source.isFolder && Array.isArray(source.content)) {
+          for (const fileSource of source.content) {
+            if (typeof fileSource.content === 'string') {
+              allSourcesContent += `Document [${fileSource.name}]:\n${fileSource.content}\n\n`;
+              documentIndex.push(fileSource.name);
+            }
+          }
+        } else {
+          allSourcesContent += `Document [${source.name}]:\n${source.content}\n\n`;
+          documentIndex.push(source.name);
+        }
       }
       
-      console.log(`Using ${sources.length} sources with total content length: ${allSourcesContent.length} characters`);
-      sourceContextPrompt = `Document Context from ${sources.length} sources:\n\n${allSourcesContent}`;
+      console.log(`Using ${documentIndex.length} sources with total content length: ${allSourcesContent.length} characters`);
+      sourceContextPrompt = `Document Context from your sources - REFER TO THESE DOCUMENTS BY THEIR EXACT NAMES IN [BRACKETS]:\n\n${allSourcesContent}`;
+      
+      // Add document index for reference
+      sourceContextPrompt += "\nAVAILABLE DOCUMENTS INDEX (use these exact names when referencing):\n";
+      documentIndex.forEach((doc, idx) => {
+        sourceContextPrompt += `${idx + 1}. [${doc}]\n`;
+      });
     } else {
       // If no sources are available, let the model use its general knowledge
       sourceContextPrompt = "No specific document content provided. Use your general knowledge to answer the question, and provide citations where appropriate.";
