@@ -12,11 +12,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 // Updated system prompt that instructs the AI to use external information with citations
 const DEFAULT_SYSTEM_PROMPT = 
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
-  "Analyze the provided context from the user's documents and answer questions based on that information. " +
+  "Analyze the provided context from ALL the user's documents and answer questions based on that information. " +
   "When analyzing images or PDFs, use OCR to extract and understand all visible text and content. " +
   "You may also use your general knowledge to provide more comprehensive answers. " +
   "When providing information not found in the user's documents, clearly indicate this with phrases like 'Based on my knowledge...' or 'According to external information...' " +
-  "If relevant, provide citations or references for information not from the provided documents. " +
+  "If relevant, provide citations or references by including the document name in [brackets] after relevant information. " +
+  "If a user asks about which document contains specific content, list all matching documents with their names in [brackets]. " +
   "If you're uncertain about something, acknowledge this rather than making up information. " +
   "Use hyperlinks where possible when referencing external sources to help users find more information.";
 
@@ -317,30 +318,39 @@ class AIService {
   }
 
   async generateChatResponse(message, chatHistory, sources, activeSource) {
-    console.log('Generating chat response with sources:', sources.length > 0 ? sources[activeSource]?.name : 'No sources');
+    console.log('Generating chat response with', sources.length, 'sources');
     
     if (!this.apiKey) {
       throw new Error('Google Gemini API key not set. Please add your API key in settings.');
     }
 
     // Allow generating responses even without sources
-    let sourceContent = '';
     let sourceContextPrompt = '';
     
-    if (sources && sources.length > 0 && sources[activeSource]) {
-      // Extract the relevant source content
-      const activeSourceData = sources[activeSource];
+    if (sources && sources.length > 0) {
+      // Use all sources instead of just the active one
+      let allSourcesContent = '';
       
-      if (activeSourceData.type === 'file') {
-        // Get the cached version of the document content
-        sourceContent = this.getProcessedDocument(activeSourceData.name) || 
-                       "No content available for this source. Please try re-uploading the document.";
-      } else {
-        sourceContent = activeSourceData.content || "No content available for this source.";
+      for (let i = 0; i < sources.length; i++) {
+        const source = sources[i];
+        let content = '';
+        
+        if (source.type === 'file') {
+          // Get the cached version of the document content
+          content = this.getProcessedDocument(source.name) || 
+                    "No content available for this source.";
+        } else if (source.type === 'folder') {
+          // For folders, we've already processed the files inside
+          content = "Folder with multiple files";
+        } else {
+          content = source.content || "No content available for this source.";
+        }
+        
+        allSourcesContent += `Document [${source.name}]:\n${content}\n\n`;
       }
       
-      console.log(`Using source: ${activeSourceData.name}, content length: ${sourceContent.length} characters`);
-      sourceContextPrompt = `Document Context from "${activeSourceData.name}":\n\n${sourceContent}`;
+      console.log(`Using ${sources.length} sources with total content length: ${allSourcesContent.length} characters`);
+      sourceContextPrompt = `Document Context from ${sources.length} sources:\n\n${allSourcesContent}`;
     } else {
       // If no sources are available, let the model use its general knowledge
       sourceContextPrompt = "No specific document content provided. Use your general knowledge to answer the question, and provide citations where appropriate.";

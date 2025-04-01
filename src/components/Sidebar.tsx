@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Plus, File, Link, FileText, FolderOpen } from 'lucide-react';
+import { Plus, File, FileText, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Sidebar = ({ sources, addSource, setActiveSource, activeSource }) => {
@@ -56,8 +56,7 @@ const Sidebar = ({ sources, addSource, setActiveSource, activeSource }) => {
                 onClick={() => setActiveSource(index)}
               >
                 {source.type === 'file' && <File className="h-4 w-4" />}
-                {source.type === 'link' && <Link className="h-4 w-4" />}
-                {source.type === 'localDrive' && <FolderOpen className="h-4 w-4" />}
+                {source.type === 'folder' && <FolderOpen className="h-4 w-4" />}
                 {source.type === 'text' && <FileText className="h-4 w-4" />}
                 {!isCollapsed && (
                   <span className="truncate">{source.name}</span>

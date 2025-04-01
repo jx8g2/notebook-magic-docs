@@ -5,16 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileTextIcon, FolderIcon, Globe, CloudUpload, FileSymlink, Copy, X } from 'lucide-react';
+import { FileTextIcon, FolderIcon, CloudUpload, Copy, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
   const [activeTab, setActiveTab] = useState('upload');
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState([]);
-  const [url, setUrl] = useState('');
   const [pastedText, setPastedText] = useState('');
-  const [useLocalDrive, setUseLocalDrive] = useState(false);
   const fileInputRef = useRef(null);
   const directoryInputRef = useRef(null);
   const { toast } = useToast();
@@ -48,6 +46,21 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
   const handleDirectoryInput = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(e.target.files);
+      
+      toast({
+        title: "Folder selected",
+        description: `Added folder with ${e.target.files.length} file(s) to your sources.`,
+        duration: 3000,
+      });
+      
+      onAddSource({ 
+        type: 'folder', 
+        name: 'Selected Folder', 
+        content: Array.from(e.target.files)
+      });
+      
+      setActiveTab('upload');
+      onClose();
     }
   };
 
@@ -74,15 +87,8 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
         onAddSource({ 
           type: 'file', 
           name: file.name, 
-          content: file,
-          useLocalDrive: useLocalDrive
+          content: file
         });
-      });
-    } else if (activeTab === 'link' && url) {
-      onAddSource({ 
-        type: 'link', 
-        name: new URL(url).hostname, 
-        content: url 
       });
     } else if (activeTab === 'text' && pastedText) {
       onAddSource({ 
@@ -90,12 +96,9 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
         name: 'Text Snippet', 
         content: pastedText 
       });
-    } else if (activeTab === 'localDrive') {
-      onAddSource({ 
-        type: 'localDrive', 
-        name: 'Local Drive', 
-        content: 'local://all' 
-      });
+    } else if (activeTab === 'folder') {
+      // Handled in handleDirectoryInput
+      return;
     } else {
       toast({
         title: "No content added",
@@ -107,9 +110,7 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
     }
     
     setFiles([]);
-    setUrl('');
     setPastedText('');
-    setUseLocalDrive(false);
     onClose();
   };
 
@@ -124,15 +125,12 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
         </DialogHeader>
         
         <Tabs defaultValue="upload" className="mt-4" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="upload" className="flex items-center gap-1">
               <CloudUpload className="h-4 w-4" /> Upload
             </TabsTrigger>
-            <TabsTrigger value="localDrive" className="flex items-center gap-1">
-              <FolderIcon className="h-4 w-4" /> Local Drive
-            </TabsTrigger>
-            <TabsTrigger value="link" className="flex items-center gap-1">
-              <FileSymlink className="h-4 w-4" /> Link
+            <TabsTrigger value="folder" className="flex items-center gap-1">
+              <FolderIcon className="h-4 w-4" /> Folder Select
             </TabsTrigger>
             <TabsTrigger value="text" className="flex items-center gap-1">
               <Copy className="h-4 w-4" /> Paste
@@ -193,32 +191,20 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
                 </div>
               </div>
             )}
-            
-            <div className="mt-4 flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="useLocalDrive"
-                checked={useLocalDrive}
-                onChange={(e) => setUseLocalDrive(e.target.checked)}
-              />
-              <label htmlFor="useLocalDrive" className="text-sm">
-                Also search my local drive for relevant information
-              </label>
-            </div>
           </TabsContent>
           
-          <TabsContent value="localDrive" className="mt-4">
+          <TabsContent value="folder" className="mt-4">
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
               <FolderIcon className="mb-2 h-10 w-10 text-muted-foreground" />
-              <h3 className="text-lg font-medium">Select Local Folder</h3>
+              <h3 className="text-lg font-medium">Select Folder</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Allows NotebookLM to search across your local files and folders for relevant information
               </p>
               <input
                 ref={directoryInputRef}
                 type="file"
-                webkitdirectory="true"
-                directory="true"
+                // Use the directory attribute with a TypeScript workaround
+                {...{directory: "", webkitdirectory: ""}}
                 multiple
                 className="hidden"
                 onChange={handleDirectoryInput}
@@ -228,27 +214,6 @@ const SourceDialog = ({ isOpen, onClose, onAddSource }) => {
                 onClick={() => directoryInputRef.current.click()}
               >
                 Select Folder
-              </Button>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="link" className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="url" className="text-sm font-medium">Website URL</label>
-              <Input
-                id="url"
-                type="url"
-                placeholder="https://example.com"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" className="flex items-center justify-start gap-1">
-                <Globe className="h-4 w-4" /> Website
-              </Button>
-              <Button variant="outline" disabled className="flex items-center justify-start gap-1 opacity-50">
-                <FileTextIcon className="h-4 w-4" /> YouTube
               </Button>
             </div>
           </TabsContent>

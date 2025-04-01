@@ -32,43 +32,42 @@ const ChatPanel = ({ sources, activeSource }) => {
       const processSourcesIfNeeded = async () => {
         try {
           setIsProcessingDocument(true);
-          const currentSource = sources[activeSource];
           
-          // If it's a file type and we don't have processed content yet
-          if (currentSource && currentSource.type === 'file' && 
-              !aiService.getProcessedDocument(currentSource.name)) {
-            
-            // Show toast notification that document is being processed
-            toast({
-              title: "Processing document",
-              description: `Analyzing ${currentSource.name}...`,
-              duration: 5000,
-            });
-            
-            console.log(`Processing source: ${currentSource.name}`);
-            // Process this document
-            await aiService.processDocuments([currentSource]);
-            
-            // Get the extracted content and display it
-            const content = aiService.getProcessedDocument(currentSource.name);
-            setExtractedContent(content || "No content could be extracted from this document.");
-            
-            toast({
-              title: "Document ready",
-              description: `${currentSource.name} has been processed and is ready for queries.`,
-              duration: 3000,
-            });
-          } else if (currentSource && currentSource.type === 'file' && 
-                     aiService.getProcessedDocument(currentSource.name)) {
-            // If we already have processed content, retrieve it
-            const content = aiService.getProcessedDocument(currentSource.name);
-            setExtractedContent(content || "No content could be extracted from this document.");
+          // Process all sources that need processing
+          for (const source of sources) {
+            if (source.type === 'file' && !aiService.getProcessedDocument(source.name)) {
+              // Show toast notification that document is being processed
+              toast({
+                title: "Processing document",
+                description: `Analyzing ${source.name}...`,
+                duration: 5000,
+              });
+              
+              console.log(`Processing source: ${source.name}`);
+              // Process this document
+              await aiService.processDocuments([source]);
+            }
           }
+          
+          // Get the extracted content for the active source
+          if (sources[activeSource]) {
+            const currentSource = sources[activeSource];
+            if (currentSource.type === 'file') {
+              const content = aiService.getProcessedDocument(currentSource.name);
+              setExtractedContent(content || "No content could be extracted from this document.");
+            }
+          }
+          
+          toast({
+            title: "Documents ready",
+            description: `All documents have been processed and are ready for queries.`,
+            duration: 3000,
+          });
         } catch (error) {
-          console.error('Error processing document:', error);
+          console.error('Error processing documents:', error);
           toast({
             title: "Error",
-            description: `Failed to process document: ${error.message}`,
+            description: `Failed to process documents: ${error.message}`,
             variant: "destructive",
             duration: 5000,
           });
@@ -105,16 +104,19 @@ const ChatPanel = ({ sources, activeSource }) => {
         content: msg.content
       }));
 
-      // Get AI response
+      // Get AI response - pass all sources instead of just activeSource
       const aiResponse = await aiService.generateChatResponse(
         message,
         formattedHistory,
         sources,
-        activeSource
+        activeSource // Still pass activeSource for compatibility
       );
       
+      // Process the response to add clickable links for document references
+      const processedResponse = processResponseWithLinks(aiResponse, sources);
+      
       // Add AI response to chat
-      const assistantMessage = { role: 'assistant', content: aiResponse };
+      const assistantMessage = { role: 'assistant', content: processedResponse };
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error getting AI response:', error);
@@ -135,6 +137,29 @@ const ChatPanel = ({ sources, activeSource }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to process response text and add clickable links for document references
+  const processResponseWithLinks = (text, sources) => {
+    if (!text) return text;
+    
+    // Create a map of document names to their indices
+    const documentMap = {};
+    sources.forEach((source, index) => {
+      documentMap[source.name] = index;
+    });
+    
+    // Replace [document name] with links
+    const regex = /\[(.*?)\]/g;
+    return text.replace(regex, (match, docName) => {
+      // Check if this document name exists in our sources
+      if (documentMap[docName] !== undefined) {
+        // Create a clickable link for this document
+        return `<a href="#" class="text-primary hover:underline" data-document-index="${documentMap[docName]}">[${docName}]</a>`;
+      }
+      // If not found, return the original match
+      return match;
+    });
   };
 
   const toggleExtractedContent = () => {
@@ -184,6 +209,26 @@ const ChatPanel = ({ sources, activeSource }) => {
     }
   };
 
+  // Handler for clicking on document links in AI responses
+  const handleDocumentLinkClick = (e) => {
+    // Check if the clicked element is a document link
+    if (e.target.tagName === 'A' && e.target.dataset.documentIndex !== undefined) {
+      e.preventDefault();
+      
+      // Get the document index and activate that source
+      const index = parseInt(e.target.dataset.documentIndex);
+      if (!isNaN(index) && index >= 0 && index < sources.length) {
+        setActiveSource(index);
+        
+        toast({
+          title: "Source activated",
+          description: `Switched to ${sources[index].name}`,
+          duration: 3000,
+        });
+      }
+    }
+  };
+
   return (
     <div className="chat-container flex h-[calc(100vh-3.5rem)] flex-1 flex-col">
       <div className="border-b p-4">
@@ -218,19 +263,19 @@ const ChatPanel = ({ sources, activeSource }) => {
             {isProcessingDocument ? (
               <span className="flex items-center">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                Processing {activeSourceData.name}...
+                Processing documents...
               </span>
             ) : (
               <span className="flex items-center">
                 <FileText className="mr-2 h-4 w-4" /> 
-                Active source: {activeSourceData.name}
+                Active source: {activeSourceData.name} ({sources.length} total sources)
               </span>
             )}
           </p>
         )}
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4" onClick={handleDocumentLinkClick}>
         {showExtractedContent && activeSourceData ? (
           <div className="bg-muted p-4 rounded-lg mb-4">
             <h3 className="font-medium mb-2">Extracted Content from {activeSourceData?.name}</h3>
@@ -244,7 +289,7 @@ const ChatPanel = ({ sources, activeSource }) => {
               <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 text-xl font-semibold">Add a source to get started</h3>
               <p className="mt-2 text-muted-foreground">
-                Upload a document, connect to Google Drive, or paste text to begin a conversation based on your content.
+                Upload a document, select a folder, or paste text to begin a conversation based on your content.
               </p>
             </div>
           </div>
@@ -263,7 +308,10 @@ const ChatPanel = ({ sources, activeSource }) => {
                 <span className="mb-1 text-xs font-medium">
                   {msg.role === 'user' ? 'You' : 'NotebookLM'}
                 </span>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <div 
+                  className="text-sm whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: msg.content }}
+                />
               </div>
             ))}
             {isLoading && (
@@ -299,7 +347,7 @@ const ChatPanel = ({ sources, activeSource }) => {
           </Button>
         </div>
         {isProcessingDocument && (
-          <p className="mt-2 text-xs text-muted-foreground">Processing document... Please wait.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Processing documents... Please wait.</p>
         )}
       </form>
     </div>
