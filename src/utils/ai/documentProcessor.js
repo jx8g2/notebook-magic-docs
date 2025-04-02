@@ -1,5 +1,6 @@
 
 import textExtractors from './textExtractors';
+import { encryptData, decryptData } from '../encryption';
 
 /**
  * Document processing utilities for extracting and managing document content
@@ -9,10 +10,27 @@ class DocumentProcessor {
     this.processedDocuments = {};
     
     // Try to load cached documents from localStorage
+    this.loadFromLocalStorage();
+  }
+
+  async loadFromLocalStorage() {
     try {
       const cachedDocs = localStorage.getItem('processedDocuments');
       if (cachedDocs) {
-        this.processedDocuments = JSON.parse(cachedDocs);
+        const parsedDocs = JSON.parse(cachedDocs);
+        
+        // Decrypt all documents
+        for (const [key, value] of Object.entries(parsedDocs)) {
+          if (typeof value === 'string' && value.startsWith('encrypted:')) {
+            // Remove the prefix and decrypt
+            const encryptedData = value.replace('encrypted:', '');
+            this.processedDocuments[key] = await decryptData(encryptedData);
+          } else {
+            // Legacy unencrypted data
+            this.processedDocuments[key] = value;
+          }
+        }
+        
         console.log('Loaded cached documents from localStorage:', Object.keys(this.processedDocuments));
       }
     } catch (error) {
@@ -156,15 +174,28 @@ class DocumentProcessor {
   /**
    * Update the localStorage cache with the current processed documents
    */
-  updateLocalStorageCache() {
+  async updateLocalStorageCache() {
     try {
-      localStorage.setItem('processedDocuments', JSON.stringify(this.processedDocuments));
+      // Create a copy of the processed documents with encrypted values
+      const encryptedDocs = {};
+      
+      for (const [key, value] of Object.entries(this.processedDocuments)) {
+        // Only encrypt strings
+        if (typeof value === 'string') {
+          const encrypted = await encryptData(value);
+          encryptedDocs[key] = `encrypted:${encrypted}`;
+        } else {
+          encryptedDocs[key] = value;
+        }
+      }
+      
+      localStorage.setItem('processedDocuments', JSON.stringify(encryptedDocs));
     } catch (e) {
       console.warn('Failed to cache documents to localStorage', e);
       // If localStorage is full, clear it and try again
       try {
         localStorage.clear();
-        localStorage.setItem('processedDocuments', JSON.stringify(this.processedDocuments));
+        this.updateLocalStorageCache();
       } catch (e2) {
         console.error('Failed to cache documents even after clearing localStorage', e2);
       }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -8,14 +9,24 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Index = () => {
-  const [title, setTitle] = useState('Untitled notebook');
   const [sources, setSources] = useState([]);
   const [activeSource, setActiveSource] = useState(0);
   const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
@@ -37,6 +48,28 @@ const Index = () => {
       description: `${source.name} has been added to your notebook.`,
       duration: 3000,
     });
+  };
+
+  const handleClearAllSources = () => {
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmClearAllSources = () => {
+    setSources([]);
+    setActiveSource(0);
+    
+    // Clear document processor cache
+    if (window.aiService && window.aiService.documentProcessor) {
+      window.aiService.documentProcessor.clearCache();
+    }
+    
+    toast({
+      title: "All sources deleted",
+      description: "All documents have been removed from your notebook.",
+      duration: 3000,
+    });
+    
+    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -64,7 +97,8 @@ const Index = () => {
         {(!isMobile || isMobileMenuOpen) && (
           <Sidebar 
             sources={sources} 
-            addSource={() => setIsSourceDialogOpen(true)} 
+            addSource={() => setIsSourceDialogOpen(true)}
+            clearSources={handleClearAllSources}
             setActiveSource={setActiveSource}
             activeSource={activeSource}
           />
@@ -86,6 +120,23 @@ const Index = () => {
         onClose={() => setIsSourceDialogOpen(false)} 
         onAddSource={handleAddSource}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. All uploaded files and text snippets will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearAllSources} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
