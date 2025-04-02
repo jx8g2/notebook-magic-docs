@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Share2, Settings, Menu, X } from 'lucide-react';
+import { Settings, Menu, X } from 'lucide-react';
 
 const Header = ({ title, setTitle, isMobileMenuOpen, setIsMobileMenuOpen, openSettings }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -50,9 +50,6 @@ const Header = ({ title, setTitle, isMobileMenuOpen, setIsMobileMenuOpen, openSe
       </div>
       <div className="flex items-center gap-2">
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="outline" size="sm" className="gap-1">
-            <Share2 className="h-4 w-4" /> Share
-          </Button>
           <Button variant="ghost" size="icon" onClick={openSettings}>
             <Settings className="h-5 w-5" />
           </Button>
