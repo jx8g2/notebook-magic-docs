@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -56,10 +55,9 @@ const Index = () => {
       )}
 
       <Header 
-        title={title} 
-        setTitle={setTitle} 
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
+        openSettings={() => {}}
       />
       
       <main className="flex flex-1 overflow-hidden">
