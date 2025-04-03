@@ -1,4 +1,3 @@
-
 import textExtractors from './textExtractors';
 import { encryptData, decryptData } from '../encryption';
 
@@ -141,7 +140,7 @@ class DocumentProcessor {
     
     if (file.type === 'application/pdf') {
       console.log(`Processing PDF file: ${file.name}`);
-      content = await textExtractors.extractTextFromPDF(file);
+      content = await textExtractors.extractTextFromPDF(file, apiKey, model);
       console.log(`Extracted ${content.length} characters from PDF: ${file.name}`);
     } else if (file.type.startsWith('image/')) {
       console.log(`Processing image file: ${file.name}`);

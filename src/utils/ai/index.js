@@ -1,6 +1,6 @@
 
 import documentProcessor from './documentProcessor';
-import { processText, processImage } from './geminiApi';
+import geminiApi, { processText, processImage } from './geminiApi';
 
 /**
  * AI Service - Handles all AI-related functionality

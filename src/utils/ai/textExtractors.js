@@ -67,7 +67,7 @@ const textExtractors = {
   /**
    * Extract text from PDF files
    */
-  extractTextFromPDF: async (file) => {
+  extractTextFromPDF: async (file, apiKey, model) => {
     try {
       console.log(`Processing PDF: ${file.name}`);
       
@@ -87,6 +87,7 @@ const textExtractors = {
       console.log(`PDF loaded with ${pdf.numPages} pages`);
       
       let extractedText = '';
+      let isScannedPDF = true;
       
       // Extract text from each page
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -94,7 +95,72 @@ const textExtractors = {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
+        
+        // If we found actual text content, this probably isn't a scanned PDF
+        if (pageText.trim().length > 100) {
+          isScannedPDF = false;
+        }
+        
         extractedText += `Page ${i}: ${pageText}\n\n`;
+      }
+      
+      // If it appears to be a scanned PDF (very little or no text extracted)
+      // Use OCR via Gemini API
+      if (isScannedPDF && extractedText.trim().length < 200) {
+        console.log(`PDF appears to be scanned with minimal text content (${extractedText.length} chars). Using OCR...`);
+        
+        if (!apiKey || !model) {
+          return `This appears to be a scanned PDF. To extract text, please set your Google Gemini API key in settings for OCR processing. Current text content: ${extractedText}`;
+        }
+        
+        // Convert PDF to images and process with OCR
+        let ocrText = '';
+        
+        // Process first 10 pages max to avoid quota issues
+        const pageLimit = Math.min(pdf.numPages, 10);
+        
+        for (let i = 1; i <= pageLimit; i++) {
+          try {
+            console.log(`Rendering page ${i} as image for OCR...`);
+            const page = await pdf.getPage(i);
+            
+            // Adjust scale for better OCR results
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            // Render PDF page to canvas
+            const renderContext = {
+              canvasContext: context,
+              viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+            
+            // Convert canvas to image blob
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const imageFile = new File([blob], `page-${i}.png`, { type: 'image/png' });
+            
+            // Process image with OCR
+            console.log(`Sending page ${i} for OCR processing...`);
+            const pageOcrText = await textExtractors.extractTextFromImage(imageFile, apiKey, model);
+            ocrText += `Page ${i}:\n${pageOcrText}\n\n`;
+            
+            // Clean up
+            canvas.remove();
+          } catch (err) {
+            console.error(`Error processing page ${i} for OCR:`, err);
+            ocrText += `Page ${i}: Error extracting text via OCR: ${err.message}\n\n`;
+          }
+        }
+        
+        if (pageLimit < pdf.numPages) {
+          ocrText += `\n(Note: Only the first ${pageLimit} pages were processed with OCR to stay within API limits. The PDF has ${pdf.numPages} pages total.)\n`;
+        }
+        
+        return ocrText || "No text could be extracted from this scanned PDF.";
       }
       
       console.log(`Extracted ${extractedText.length} characters from PDF`);
