@@ -1,4 +1,3 @@
-
 import textExtractors from './textExtractors';
 
 /**
@@ -40,7 +39,7 @@ class DocumentProcessor {
             content = this.processedDocuments[fileKey];
           } else {
             // Process based on file type
-            content = await this.extractContentFromFile(file, apiKey, model);
+            content = await this.extractContentFromFile(file);
             
             // Store the processed content in the cache using filename and size as key
             if (content) {
@@ -75,7 +74,7 @@ class DocumentProcessor {
               content = this.processedDocuments[fileName] || this.processedDocuments[fileKey];
             } else {
               // Process based on file type
-              content = await this.extractContentFromFile(file, apiKey, model);
+              content = await this.extractContentFromFile(file);
               
               // Store the processed content in the cache
               if (content) {
@@ -118,7 +117,7 @@ class DocumentProcessor {
   /**
    * Helper method to extract content from a file based on its type
    */
-  async extractContentFromFile(file, apiKey, model) {
+  async extractContentFromFile(file) {
     let content = '';
     
     if (file.type === 'application/pdf') {
@@ -127,7 +126,7 @@ class DocumentProcessor {
       console.log(`Extracted ${content.length} characters from PDF: ${file.name}`);
     } else if (file.type.startsWith('image/')) {
       console.log(`Processing image file: ${file.name}`);
-      content = await textExtractors.extractTextFromImage(file, apiKey, model);
+      content = await textExtractors.extractTextFromImage(file);
       console.log(`Extracted text from image: ${file.name}`, content.substring(0, 100) + '...');
     } else if (file.type === 'text/plain') {
       content = await file.text();

@@ -1,4 +1,3 @@
-
 import documentProcessor from './documentProcessor';
 import geminiApi from './geminiApi';
 
@@ -8,7 +7,7 @@ import geminiApi from './geminiApi';
 class AIService {
   constructor() {
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
-    this.model = 'gemini-2.0-flash'; // Using Gemini 1.5 Flash model which supports multimodality
+    this.model = 'gemini-2.0-flash'; // Using Gemini model
   }
 
   /**
@@ -38,7 +37,7 @@ class AIService {
    * Process documents to extract their content
    */
   async processDocuments(sources) {
-    return documentProcessor.processDocuments(sources, this.apiKey, this.model);
+    return documentProcessor.processDocuments(sources);
   }
   
   /**

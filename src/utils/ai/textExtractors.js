@@ -1,7 +1,7 @@
-
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
+import { createWorker } from 'tesseract.js';
 
 // Set worker path for PDF.js
 const pdfjsWorker = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -133,65 +133,36 @@ const textExtractors = {
   },
   
   /**
-   * Extract text from images using Gemini's OCR capabilities
+   * Extract text from images using Tesseract.js OCR
    */
-  extractTextFromImage: async (file, apiKey, model) => {
+  extractTextFromImage: async (file) => {
     try {
-      if (!apiKey) {
-        throw new Error('API key not set');
-      }
+      console.log(`Processing image with Tesseract OCR: ${file.name}`);
       
-      console.log(`Converting image to base64: ${file.name}`);
-      // Convert image to base64
-      const base64Image = await textExtractors.fileToBase64(file);
+      // Create a URL for the image file
+      const imageUrl = URL.createObjectURL(file);
       
-      console.log('Creating request to Gemini for OCR extraction');
-      // Create a request to Gemini to extract text from the image
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              {
-                text: "Extract all visible text from this image using OCR. Return only the extracted text, nothing else. Be thorough and extract ALL text visible in the image, including small text, headers, captions, and any text in diagrams or figures."
-              },
-              {
-                inline_data: {
-                  mime_type: file.type,
-                  data: base64Image.split(',')[1]
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 4000,
-        }
-      };
+      // Initialize Tesseract worker
+      const worker = await createWorker('eng');
       
-      console.log('Sending OCR request to Gemini API');
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
+      console.log('Tesseract worker initialized, starting OCR processing');
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to process image with Gemini');
-      }
+      // Perform OCR on the image
+      const { data } = await worker.recognize(imageUrl);
       
-      console.log('Received OCR response from Gemini API');
-      const data = await response.json();
-      const extractedText = data.candidates[0].content.parts[0].text;
+      // Release the Tesseract worker
+      await worker.terminate();
       
+      // Release the object URL
+      URL.revokeObjectURL(imageUrl);
+      
+      const extractedText = data.text;
       console.log(`OCR extracted ${extractedText.length} characters of text`);
+      
       return extractedText || "No text could be extracted from this image.";
     } catch (error) {
-      console.error('Error extracting text from image:', error);
-      return `Error extracting text from image: ${error.message}`;
+      console.error('Error extracting text from image with Tesseract:', error);
+      return `Error extracting text from image: ${error.message}. The OCR engine could not process this image.`;
     }
   }
 };
