@@ -10,4 +10,7 @@ export default aiService;
 // Also export individual utilities for direct usage when needed
 export { default as documentProcessor } from './documentProcessor';
 export { default as textExtractors } from './textExtractors';
-export const { generateChatResponse, processImage, verifyApiKey } = geminiApi;
+
+// Explicitly extract and re-export the functions from geminiApi
+const { generateChatResponse, processImage, verifyApiKey } = geminiApi;
+export { generateChatResponse, processImage, verifyApiKey };
