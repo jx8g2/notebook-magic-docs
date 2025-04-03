@@ -1,3 +1,4 @@
+
 // Default system prompt for instructing the AI
 export const DEFAULT_SYSTEM_PROMPT = 
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
@@ -12,128 +13,6 @@ export const DEFAULT_SYSTEM_PROMPT =
   "Use HTML tags for formatting: <b>bold</b>, <i>italic</i>, <u>underline</u>, <ol><li>numbered lists</li></ol>, <ul><li>bullet lists</li></ul>. " +
   "DO NOT use markdown formatting like **, __, ##, etc. Always use proper HTML tags instead. " +
   "Use hyperlinks where possible when referencing external sources to help users find more information: <a href='URL'>link text</a>.";
-
-/**
- * Process text with Gemini AI
- */
-export const processText = async (text, prompt, apiKey = null, model = null) => {
-  if (!apiKey) {
-    throw new Error('API key not set');
-  }
-  
-  if (!model) {
-    model = 'gemini-2.0-flash';
-  }
-  
-  try {
-    console.log('Creating request to Gemini for text processing');
-    
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            { text: prompt || "Please analyze this text:" },
-            { text: text }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 4000,
-      }
-    };
-    
-    console.log('Sending text processing request to Gemini API');
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to process text with Gemini');
-    }
-    
-    const data = await response.json();
-    const result = data.candidates[0].content.parts[0].text;
-    
-    return result;
-  } catch (error) {
-    console.error('Error processing text with Gemini:', error);
-    throw error;
-  }
-};
-
-/**
- * Process image with Gemini AI for OCR and analysis
- */
-export const processImage = async (imageBase64, prompt, apiKey = null, model = null) => {
-  if (!apiKey) {
-    throw new Error('API key not set');
-  }
-  
-  if (!model) {
-    model = 'gemini-2.0-flash';
-  }
-  
-  try {
-    console.log('Creating request to Gemini for image processing');
-    
-    // Ensure base64 is properly formatted (remove data:image/* prefix if present)
-    const base64Data = imageBase64.includes('base64,') 
-      ? imageBase64.split('base64,')[1] 
-      : imageBase64;
-    
-    const mimeType = imageBase64.includes('data:') 
-      ? imageBase64.split(';')[0].split(':')[1] 
-      : 'image/png';
-    
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            { text: prompt || "Extract all visible text from this image using OCR. Return only the extracted text, nothing else." },
-            { 
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 4000,
-      }
-    };
-    
-    console.log('Sending image processing request to Gemini API');
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to process image with Gemini');
-    }
-    
-    const data = await response.json();
-    const result = data.candidates[0].content.parts[0].text;
-    
-    return result;
-  } catch (error) {
-    console.error('Error processing image with Gemini:', error);
-    throw error;
-  }
-};
 
 /**
  * Handles communication with the Gemini API
@@ -260,17 +139,7 @@ const geminiApi = {
       console.error('Error verifying API key:', error);
       return false;
     }
-  },
-  
-  /**
-   * Process text with AI
-   */
-  processText,
-  
-  /**
-   * Process an image with AI for OCR
-   */
-  processImage
+  }
 };
 
 export default geminiApi;
