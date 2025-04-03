@@ -1,145 +1,118 @@
 
-import geminiApi from './geminiApi';
-import llamaLocalClient from './llamaLocalClient';
 import documentProcessor from './documentProcessor';
+import geminiApi from './geminiApi';
 
 /**
- * AIService class that handles interactions with AI providers
+ * Main AIService class that coordinates document processing and AI requests
  */
 class AIService {
   constructor() {
-    // Initialize with default values
     this.apiKey = localStorage.getItem('gemini_api_key') || '';
-    this.model = localStorage.getItem('ai_model') || 'gemini-1.5-flash';
-    this.provider = localStorage.getItem('ai_provider') || 'gemini';
-    this.serverUrl = localStorage.getItem('llama_server_url') || 'http://localhost:8000';
-    this.localModel = localStorage.getItem('llama_model') || 'llama-3.2-8b';
-    
-    // Make AIService available globally for debugging
-    if (typeof window !== 'undefined') {
-      window.aiService = this;
-    }
+    this.model = 'gemini-2.0-flash'; // Using Gemini 1.5 Flash model which supports multimodality
   }
 
   /**
-   * Set and verify the Gemini API key
+   * Set the API key for Gemini
    */
-  async setApiKey(apiKey) {
-    const isValid = await geminiApi.verifyApiKey(apiKey);
-    if (isValid) {
-      this.apiKey = apiKey;
-      localStorage.setItem('gemini_api_key', apiKey);
-    }
-    return isValid;
+  async setApiKey(key) {
+    this.apiKey = key;
+    localStorage.setItem('gemini_api_key', key);
+    return this.verifyApiKey();
   }
-  
-  /**
-   * Set the model for Gemini API
-   */
-  setModel(model) {
-    this.model = model;
-    localStorage.setItem('ai_model', model);
-    return true;
-  }
-  
+
   /**
    * Get the current API key
    */
   getApiKey() {
     return this.apiKey;
   }
-  
+
   /**
-   * Get the current model
+   * Verify if the current API key is valid
    */
-  getModel() {
-    if (this.provider === 'gemini') {
-      return this.model;
-    } else {
-      return this.localModel;
-    }
-  }
-  
-  /**
-   * Set the AI provider (gemini or local)
-   */
-  setProvider(provider) {
-    if (provider !== 'gemini' && provider !== 'local') {
-      console.error('Invalid provider. Must be "gemini" or "local"');
-      return false;
-    }
-    this.provider = provider;
-    localStorage.setItem('ai_provider', provider);
-    return true;
-  }
-  
-  /**
-   * Get the current AI provider
-   */
-  getProvider() {
-    return this.provider;
-  }
-  
-  /**
-   * Set and verify the local Llama server
-   */
-  async setLocalServer(serverUrl, model) {
-    llamaLocalClient.setServerUrl(serverUrl);
-    llamaLocalClient.setModel(model);
-    
-    const isConnected = await llamaLocalClient.verifyConnection();
-    if (isConnected) {
-      this.serverUrl = serverUrl;
-      this.localModel = model;
-      localStorage.setItem('llama_server_url', serverUrl);
-      localStorage.setItem('llama_model', model);
-    }
-    return isConnected;
-  }
-  
-  /**
-   * Get the current Llama server URL
-   */
-  getServerUrl() {
-    return this.serverUrl;
+  async verifyApiKey() {
+    return geminiApi.verifyApiKey(this.apiKey);
   }
 
   /**
-   * Process files/documents and generate chat responses
+   * Process documents to extract their content
    */
   async processDocuments(sources) {
-    // Process documents (same for both providers)
-    return await documentProcessor.processDocuments(sources, this.apiKey, this.model);
+    return documentProcessor.processDocuments(sources, this.apiKey, this.model);
+  }
+  
+  /**
+   * Generate a chat response using the Gemini API
+   */
+  async generateChatResponse(message, chatHistory, sources, activeSource) {
+    // Process all sources into the format expected by the API
+    const processedSources = [];
+    
+    for (const source of sources) {
+      // For file sources, get the processed content
+      if (source.type === 'file') {
+        const content = this.getProcessedDocument(source.name);
+        if (content) {
+          processedSources.push({
+            name: source.name,
+            content: content
+          });
+        }
+      } else if (source.type === 'folder') {
+        // For folder sources, collect all processed contents from its files
+        if (Array.isArray(source.content)) {
+          // Process each file in the folder
+          for (const file of source.content) {
+            const fileName = `${source.name}/${file.name}`;
+            const content = this.getProcessedDocument(fileName);
+            if (content) {
+              processedSources.push({
+                name: fileName,
+                content: content
+              });
+            }
+          }
+        }
+      } else if (source.type === 'fileGroup') {
+        // For file groups (multiple selected files), include all files
+        if (Array.isArray(source.content)) {
+          for (const file of source.content) {
+            const content = this.getProcessedDocument(file.name);
+            if (content) {
+              processedSources.push({
+                name: file.name,
+                content: content
+              });
+            }
+          }
+        }
+      } else if (source.type === 'text') {
+        processedSources.push({
+          name: source.name,
+          content: source.content || "No content available for this source."
+        });
+      }
+    }
+
+    // If no processed sources were found, let the user know
+    if (processedSources.length === 0) {
+      console.error('No processed content available for any sources!');
+      return "I couldn't find any processed content for your documents. Please try re-uploading them or check if the document format is supported.";
+    }
+    
+    console.log(`Sending ${processedSources.length} processed sources to the API`);
+    return geminiApi.generateChatResponse(message, chatHistory, processedSources, this.apiKey, this.model);
+  }
+  
+  /**
+   * Get processed document content
+   */
+  getProcessedDocument(fileName) {
+    return documentProcessor.getProcessedDocument(fileName);
   }
 
   /**
-   * Generate a chat response using the chosen AI provider
-   */
-  async generateChatResponse(message, chatHistory, sources) {
-    if (this.provider === 'gemini') {
-      return await geminiApi.generateChatResponse(message, chatHistory, sources, this.apiKey, this.model);
-    } else {
-      return await llamaLocalClient.generateChatResponse(message, chatHistory, sources);
-    }
-  }
-  
-  /**
-   * Process an image (OCR) using the chosen AI provider
-   */
-  async processImage(imageData) {
-    if (this.provider === 'gemini') {
-      // Ensure we have a method to process images in geminiApi
-      if (!geminiApi.processImage) {
-        throw new Error('Image processing not available with current Gemini API implementation');
-      }
-      return await geminiApi.processImage(imageData, this.apiKey, this.model);
-    } else {
-      return await llamaLocalClient.processImage(imageData);
-    }
-  }
-  
-  /**
-   * Clear document cache
+   * Clear cache for a specific document or all documents
    */
   clearCache(fileName = null) {
     documentProcessor.clearCache(fileName);
