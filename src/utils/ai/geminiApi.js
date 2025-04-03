@@ -126,6 +126,89 @@ const geminiApi = {
   },
 
   /**
+   * Process an image using Gemini's vision capabilities for OCR and analysis
+   */
+  processImage: async (imageData, apiKey, model) => {
+    if (!apiKey) {
+      throw new Error('Google Gemini API key not set. Please add your API key in settings.');
+    }
+
+    console.log('Processing image with Gemini OCR capabilities');
+    
+    try {
+      // Convert the image data to base64 if it's not already
+      let base64Image = imageData;
+      if (imageData instanceof Blob) {
+        base64Image = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(imageData);
+        });
+      } else if (!imageData.startsWith('data:') && !imageData.startsWith('/9j/')) {
+        // If it's not a base64 string already, assume it's a URL or path
+        console.error('Image data must be a Blob or base64 string');
+        throw new Error('Invalid image data format');
+      }
+
+      // Prepare the request to Gemini with the image
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: "Extract and analyze all text content from this image. Include all visible text in the image. Format the text to preserve the original layout as much as possible. For complex documents, organize the content by sections."
+              },
+              {
+                inline_data: {
+                  mime_type: "image/jpeg",
+                  data: base64Image
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 4000,
+        }
+      };
+
+      console.log('Sending image to Gemini API for OCR processing');
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error response from Gemini API for image processing:', error);
+        throw new Error(error.error?.message || 'Failed to process image with Google Gemini');
+      }
+
+      const data = await response.json();
+      
+      // Extract the OCR text from Gemini's response
+      if (data.candidates && data.candidates.length > 0 && 
+          data.candidates[0].content && 
+          data.candidates[0].content.parts && 
+          data.candidates[0].content.parts.length > 0) {
+        const ocrText = data.candidates[0].content.parts[0].text;
+        console.log(`Extracted ${ocrText.length} characters from image using OCR`);
+        return ocrText;
+      } else {
+        console.error('Invalid response format from Gemini API for image processing:', data);
+        throw new Error('Invalid response format from Gemini API for image processing');
+      }
+    } catch (error) {
+      console.error('Error processing image with OCR:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Verify if an API key is valid
    */
   verifyApiKey: async (apiKey) => {
