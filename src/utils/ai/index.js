@@ -1,6 +1,6 @@
 
 import documentProcessor from './documentProcessor';
-import geminiApi from './geminiApi';
+import geminiApi, { processText, processImage } from './geminiApi';
 
 /**
  * AI Service - Handles all AI-related functionality
@@ -35,14 +35,14 @@ class AIService {
    * Process text with AI
    */
   async processTextWithAI(text, prompt, apiKey = null, model = null) {
-    return geminiApi.processText(text, prompt, apiKey, model);
+    return processText(text, prompt, apiKey, model);
   }
 
   /**
    * Process an image with AI
    */
   async processImageWithAI(image, prompt, apiKey = null, model = null) {
-    return geminiApi.processImage(image, prompt, apiKey, model);
+    return processImage(image, prompt, apiKey, model);
   }
 }
 
