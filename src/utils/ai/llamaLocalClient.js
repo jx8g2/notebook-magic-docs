@@ -1,4 +1,9 @@
 
+/**
+ * Client for interacting with locally-running Llama 3.2 models
+ * This implementation assumes you have Llama running locally via a REST API
+ */
+
 // Default system prompt for instructing the AI
 export const DEFAULT_SYSTEM_PROMPT = 
   "You are an AI assistant called NotebookLM that helps users understand their documents. " +
@@ -15,17 +20,62 @@ export const DEFAULT_SYSTEM_PROMPT =
   "Use hyperlinks where possible when referencing external sources to help users find more information: <a href='URL'>link text</a>.";
 
 /**
- * Handles communication with the Gemini API
+ * Configuration for local Llama server
  */
-const geminiApi = {
+const CONFIG = {
+  localServerUrl: 'http://localhost:8000', // Default local server URL
+  defaultModel: 'llama-3.2-8b', // Default local model
+};
+
+/**
+ * Handles communication with a locally running Llama model
+ */
+const llamaLocalClient = {
+  serverUrl: CONFIG.localServerUrl,
+  currentModel: CONFIG.defaultModel,
+  
   /**
-   * Generate a chat response using the Gemini API
+   * Set the server URL for the local Llama instance
    */
-  generateChatResponse: async (message, chatHistory, sources, apiKey, model) => {
-    console.log('Generating chat response with', sources.length, 'sources');
+  setServerUrl(url) {
+    if (!url) return false;
+    this.serverUrl = url;
+    return true;
+  },
+  
+  /**
+   * Set the model to use
+   */
+  setModel(model) {
+    if (!model) return false;
+    this.currentModel = model;
+    return true;
+  },
+  
+  /**
+   * Verify if the local Llama server is available
+   */
+  async verifyConnection() {
+    try {
+      // Simple health check request to verify the server is running
+      const response = await fetch(`${this.serverUrl}/health`, {
+        method: 'GET',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error connecting to local Llama server:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Generate a chat response using the local Llama model
+   */
+  generateChatResponse: async (message, chatHistory, sources) => {
+    console.log('Generating chat response with local Llama model using', sources.length, 'sources');
     
-    if (!apiKey) {
-      throw new Error('Google Gemini API key not set. Please add your API key in settings.');
+    if (!llamaLocalClient.serverUrl) {
+      throw new Error('Local Llama server URL not configured. Please set the server URL in settings.');
     }
 
     // Allow generating responses even without sources
@@ -58,39 +108,39 @@ const geminiApi = {
       sourceContextPrompt = "No specific document content provided. Use your general knowledge to answer the question, and provide citations where appropriate.";
     }
 
-    // Format chat history for Gemini API
+    // Format chat history for Llama API
     const formattedHistory = chatHistory.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content
     }));
 
-    // Prepare the request body
+    // Prepare the request body for local Llama server
+    // Note: This format might need to be adjusted based on your specific local Llama API implementation
     const requestBody = {
-      contents: [
+      model: llamaLocalClient.currentModel,
+      messages: [
         {
-          role: 'user',
-          parts: [{ text: DEFAULT_SYSTEM_PROMPT }]
+          role: 'system',
+          content: DEFAULT_SYSTEM_PROMPT
         },
         {
           role: 'user',
-          parts: [{ text: sourceContextPrompt }]
+          content: sourceContextPrompt
         },
         ...formattedHistory,
         {
           role: 'user',
-          parts: [{ text: message }]
+          content: message
         }
       ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 4000,
-      }
+      temperature: 0.7,
+      max_tokens: 4000,
     };
 
     try {
-      console.log('Sending request to Gemini API');
-      // Make the API request to Gemini with the updated model
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      console.log('Sending request to local Llama server');
+      // Make the API request to local Llama server
+      const response = await fetch(`${llamaLocalClient.serverUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -100,24 +150,24 @@ const geminiApi = {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('Error response from Gemini API:', error);
-        throw new Error(error.error?.message || 'Failed to get response from Google Gemini');
+        console.error('Error response from local Llama server:', error);
+        throw new Error(error.error?.message || 'Failed to get response from local Llama server');
       }
 
-      console.log('Received response from Gemini API');
+      console.log('Received response from local Llama server');
       const data = await response.json();
       
-      // Extract the response text from Gemini's response format
-      if (data.candidates && data.candidates.length > 0 && 
-          data.candidates[0].content && 
-          data.candidates[0].content.parts && 
-          data.candidates[0].content.parts.length > 0) {
-        const responseText = data.candidates[0].content.parts[0].text;
+      // Extract the response text from Llama's response format
+      // This format will depend on your local Llama API - adjust as needed
+      if (data.choices && data.choices.length > 0 && 
+          data.choices[0].message && 
+          data.choices[0].message.content) {
+        const responseText = data.choices[0].message.content;
         console.log(`Generated response with ${responseText.length} characters`);
         return responseText;
       } else {
-        console.error('Invalid response format from Gemini API:', data);
-        throw new Error('Invalid response format from Gemini API');
+        console.error('Invalid response format from local Llama server:', data);
+        throw new Error('Invalid response format from local Llama server');
       }
     } catch (error) {
       console.error('Error generating chat response:', error);
@@ -126,12 +176,12 @@ const geminiApi = {
   },
 
   /**
-   * Process an image using Gemini's vision capabilities
+   * Process an image using the local Llama model with vision capabilities
    * Used for OCR and image analysis
    */
-  processImage: async (imageData, apiKey, model) => {
-    if (!apiKey) {
-      throw new Error('Google Gemini API key not set');
+  processImage: async (imageData) => {
+    if (!llamaLocalClient.serverUrl) {
+      throw new Error('Local Llama server URL not configured');
     }
 
     try {
@@ -145,23 +195,23 @@ const geminiApi = {
         });
       }
 
-      // Use Gemini's vision capabilities to analyze the image
+      // Prepare request for Llama vision API endpoint
       const requestBody = {
-        contents: [
+        model: llamaLocalClient.currentModel,
+        messages: [
           {
-            parts: [
-              { text: "Extract and analyze all text visible in this image. Describe any non-text content briefly." },
-              { inline_data: { data: base64Image, mime_type: "image/jpeg" } }
+            role: "user",
+            content: [
+              { type: "text", text: "Extract and analyze all text visible in this image. Describe any non-text content briefly." },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
             ]
           }
         ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 1000,
-        }
+        max_tokens: 1000
       };
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-vision:generateContent?key=${apiKey}`, {
+      // Send request to local Llama vision API
+      const response = await fetch(`${llamaLocalClient.serverUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -170,18 +220,14 @@ const geminiApi = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to process image');
+        throw new Error(`Failed to process image: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const result = await response.json();
       
       // Extract text from response
-      if (data.candidates && data.candidates.length > 0 && 
-          data.candidates[0].content && 
-          data.candidates[0].content.parts && 
-          data.candidates[0].content.parts.length > 0) {
-        return data.candidates[0].content.parts[0].text;
+      if (result.choices && result.choices.length > 0 && result.choices[0].message) {
+        return result.choices[0].message.content;
       } else {
         throw new Error('Invalid response format from image processing');
       }
@@ -189,23 +235,7 @@ const geminiApi = {
       console.error('Error processing image:', error);
       throw error;
     }
-  },
-
-  /**
-   * Verify if an API key is valid
-   */
-  verifyApiKey: async (apiKey) => {
-    if (!apiKey) return false;
-    
-    try {
-      // Using a simple request to verify the API key
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      return response.ok;
-    } catch (error) {
-      console.error('Error verifying API key:', error);
-      return false;
-    }
   }
 };
 
-export default geminiApi;
+export default llamaLocalClient;

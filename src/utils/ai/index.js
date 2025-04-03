@@ -9,3 +9,5 @@ export default aiService;
 // Also export individual utilities for direct usage when needed
 export { default as documentProcessor } from './documentProcessor';
 export { default as textExtractors } from './textExtractors';
+export { default as geminiApi } from './geminiApi';
+export { default as llamaLocalClient } from './llamaLocalClient';
