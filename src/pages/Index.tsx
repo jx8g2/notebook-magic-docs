@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -19,6 +18,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// Import AIService to ensure it's initialized
+import aiService from '@/utils/ai';
 
 const Index = () => {
   const [sources, setSources] = useState([]);
@@ -59,8 +61,8 @@ const Index = () => {
     setActiveSource(0);
     
     // Clear document processor cache
-    if (window.aiService && window.aiService.documentProcessor) {
-      window.aiService.documentProcessor.clearCache();
+    if (window.aiService) {
+      window.aiService.clearCache();
     }
     
     toast({
